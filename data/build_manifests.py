@@ -45,38 +45,32 @@ def parse_bvcc(bvcc_dir: str) -> list:
     return rows
 
 
-def parse_tmhint(tmhint_dir: str, label_csv: str = "VOICEMOS2023_DISTRO/train_avg_mos.csv", wav_subdir: str = "train") -> list:
+def parse_tmhint(tmhint_dir: str, label_csv: str = "TMHINTQI/raw_data.csv", wav_subdir: str = "TMHINTQI/train") -> list:
     """Parse TMHINT-QI dataset (VoiceMOS 2023 Track 3).
 
-    Uses train_avg_mos.csv from VOICEMOS2023_DISTRO (columns: uttID, avgMOS).
-    Audio lives in the InQSS dataset 'train/' subdirectory.
-    Falls back to generic 'filename'/'quality' columns if those aren't present.
+    Uses raw_data.csv (columns: file_name, quality_score per listener).
+    Averages quality_score by file_name to get per-utterance MOS.
+    Audio lives in TMHINTQI/train/.
     """
     label_path = os.path.join(tmhint_dir, label_csv)
     wav_dir = os.path.join(tmhint_dir, wav_subdir)
     df = pd.read_csv(label_path)
+
+    # Average per-listener ratings to utterance-level MOS
+    avg = df.groupby("file_name")["quality_score"].mean().reset_index()
+    avg.columns = ["file_name", "avg_mos"]
+
     rows = []
-
-    # Normalise column names to (filename_col, mos_col)
-    if "uttID" in df.columns and "avgMOS" in df.columns:
-        filename_col, mos_col = "uttID", "avgMOS"
-        # uttID is bare stem (e.g. "FCN_snr0_babble_TMHINT_g1_14_01"); append .wav
-        df["_wavfile"] = df[filename_col] + ".wav"
-    else:
-        filename_col, mos_col = "filename", "quality"
-        df["_wavfile"] = df[filename_col]
-
-    for _, row in df.iterrows():
-        wav_path = os.path.join(wav_dir, row["_wavfile"])
+    for _, row in avg.iterrows():
+        wav_path = os.path.join(wav_dir, row["file_name"] + ".wav")
         if not os.path.exists(wav_path):
             continue
-        fname = row["_wavfile"]
         rows.append({
             "path": os.path.abspath(wav_path),
-            "acr": float(row[mos_col]),
+            "acr": float(row["avg_mos"]),
             "ccr": float("nan"),
             "language": "zh",
-            "system": str(fname).split("_")[0],
+            "system": str(row["file_name"]).split("_")[0],
             "split": "train",
         })
     return rows
