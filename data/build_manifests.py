@@ -45,24 +45,38 @@ def parse_bvcc(bvcc_dir: str) -> list:
     return rows
 
 
-def parse_tmhint(tmhint_dir: str, label_csv: str = "scores.csv", wav_subdir: str = "wav") -> list:
+def parse_tmhint(tmhint_dir: str, label_csv: str = "VOICEMOS2023_DISTRO/train_avg_mos.csv", wav_subdir: str = "train") -> list:
     """Parse TMHINT-QI dataset (VoiceMOS 2023 Track 3).
-    CSV columns: filename, quality, intelligibility
+
+    Uses train_avg_mos.csv from VOICEMOS2023_DISTRO (columns: uttID, avgMOS).
+    Audio lives in the InQSS dataset 'train/' subdirectory.
+    Falls back to generic 'filename'/'quality' columns if those aren't present.
     """
     label_path = os.path.join(tmhint_dir, label_csv)
     wav_dir = os.path.join(tmhint_dir, wav_subdir)
     df = pd.read_csv(label_path)
     rows = []
+
+    # Normalise column names to (filename_col, mos_col)
+    if "uttID" in df.columns and "avgMOS" in df.columns:
+        filename_col, mos_col = "uttID", "avgMOS"
+        # uttID is bare stem (e.g. "FCN_snr0_babble_TMHINT_g1_14_01"); append .wav
+        df["_wavfile"] = df[filename_col] + ".wav"
+    else:
+        filename_col, mos_col = "filename", "quality"
+        df["_wavfile"] = df[filename_col]
+
     for _, row in df.iterrows():
-        wav_path = os.path.join(wav_dir, row["filename"])
+        wav_path = os.path.join(wav_dir, row["_wavfile"])
         if not os.path.exists(wav_path):
             continue
+        fname = row["_wavfile"]
         rows.append({
             "path": os.path.abspath(wav_path),
-            "acr": float(row["quality"]),
+            "acr": float(row[mos_col]),
             "ccr": float("nan"),
             "language": "zh",
-            "system": str(row["filename"]).split("_")[0],
+            "system": str(fname).split("_")[0],
             "split": "train",
         })
     return rows
