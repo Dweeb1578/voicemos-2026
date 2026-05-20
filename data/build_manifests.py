@@ -16,31 +16,34 @@ from data.preprocess import write_manifest
 def parse_bvcc(bvcc_dir: str) -> list:
     """Parse BVCC dataset (VoiceMOS 2022 main track).
 
-    Expected structure:
-        bvcc_dir/sets/{TRAINSET,DEVSET}/mydata_system.csv
-        bvcc_dir/sets/{TRAINSET,DEVSET}/wav/{system_ID}_{file_name}.wav
-    CSV columns: system_ID, file_name, mean_score
+    Actual structure after extraction:
+        bvcc_dir/main/DATA/sets/{TRAINSET,DEVSET}  -- no header, cols: system_id,filename,score,...
+        bvcc_dir/main/DATA/wav/                    -- all wav files flat
     """
+    data_dir = os.path.join(bvcc_dir, "main", "DATA")
+    wav_dir = os.path.join(data_dir, "wav")
+    if not os.path.exists(wav_dir):
+        return []
+
     rows = []
-    for split_name in ("TRAINSET", "DEVSET"):
-        split_dir = os.path.join(bvcc_dir, "sets", split_name)
-        label_path = os.path.join(split_dir, "mydata_system.csv")
-        wav_dir = os.path.join(split_dir, "wav")
-        if not os.path.exists(label_path):
+    for split_name, split_label in (("TRAINSET", "train"), ("DEVSET", "dev")):
+        split_path = os.path.join(data_dir, "sets", split_name)
+        if not os.path.exists(split_path):
             continue
-        df = pd.read_csv(label_path)
-        for _, row in df.iterrows():
-            wav_name = f"{row['system_ID']}_{row['file_name']}.wav"
-            wav_path = os.path.join(wav_dir, wav_name)
+        df = pd.read_csv(split_path, header=None,
+                         names=["system_id", "filename", "score", "session_id", "listener_info"])
+        avg = df.groupby("filename")["score"].mean().reset_index()
+        for _, row in avg.iterrows():
+            wav_path = os.path.join(wav_dir, row["filename"])
             if not os.path.exists(wav_path):
                 continue
             rows.append({
                 "path": os.path.abspath(wav_path),
-                "acr": float(row["mean_score"]),
+                "acr": float(row["score"]),
                 "ccr": float("nan"),
                 "language": "en",
-                "system": str(row["system_ID"]),
-                "split": "train" if split_name == "TRAINSET" else "dev",
+                "system": str(row["filename"]).split("-")[0],
+                "split": split_label,
             })
     return rows
 
