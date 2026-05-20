@@ -1,0 +1,19 @@
+model:
+  whisper_model: "openai/whisper-medium"
+  proj_dim: 256
+
+training:
+  train_manifest: "data/manifests/pretrain_train.csv"
+  dev_manifest: "data/manifests/pretrain_dev.csv"
+  batch_size: 32
+  epochs: 30
+  lr: 1.0e-4
+  lr_gamma: 0.9999
+  ccr_lambda: 0.0
+  ccr_lambda_ramp_epochs: 0
+  checkpoint_dir: "checkpoints/pretrain"
+  checkpoint_every_n_epochs: 5
+  num_workers: 4
+
+logging:
+  run_name: "pretrain-whisper-medium"

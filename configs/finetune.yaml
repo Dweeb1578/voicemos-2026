@@ -1,0 +1,20 @@
+model:
+  whisper_model: "openai/whisper-medium"
+  proj_dim: 256
+
+training:
+  train_manifest: "data/manifests/finetune_train.csv"
+  dev_manifest: "data/manifests/finetune_dev.csv"
+  pretrained_checkpoint: "checkpoints/pretrain/best.pt"
+  batch_size: 16
+  epochs: 10
+  lr: 1.0e-5
+  lr_gamma: 0.9999
+  ccr_lambda: 1.0
+  ccr_lambda_ramp_epochs: 3
+  checkpoint_dir: "checkpoints/finetune"
+  checkpoint_every_n_epochs: 2
+  num_workers: 4
+
+logging:
+  run_name: "finetune-whisper-medium"
