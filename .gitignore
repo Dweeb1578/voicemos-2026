@@ -1,0 +1,9 @@
+data/datasets/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.pt
+*.ckpt
+wandb/
+.env
+checkpoints/
