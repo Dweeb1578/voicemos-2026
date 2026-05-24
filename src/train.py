@@ -137,10 +137,15 @@ def train(cfg: dict):
 
         if dv_m["srcc"] > best_srcc:
             best_srcc = dv_m["srcc"]
+            best_path = os.path.join(t_cfg["checkpoint_dir"], "best.pt")
             torch.save(
                 {"epoch": epoch, "model_state": model.state_dict(), "dev_srcc": best_srcc},
-                os.path.join(t_cfg["checkpoint_dir"], "best.pt"),
+                best_path,
             )
+            if drive_dir:
+                import shutil
+                shutil.copy(best_path, os.path.join(drive_dir, "pretrain_best.pt"))
+                print(f"  -> best.pt saved to Drive (epoch {epoch}, SRCC {best_srcc:.4f})")
 
         save_every = t_cfg.get("checkpoint_every_n_epochs", 5)
         if epoch % save_every == 0:
