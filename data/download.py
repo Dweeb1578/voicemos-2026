@@ -7,6 +7,7 @@ Usage:
 import argparse
 import os
 import subprocess
+import tarfile
 import zipfile
 
 import gdown
@@ -14,6 +15,7 @@ import requests
 from tqdm import tqdm
 
 TMHINT_REPO = "https://github.com/dhimasryan/TMHINT-QI-VoiceMOS2023.git"
+TMHINT_AUDIO_ID = "1TMDiz6dnS76hxyeAcCQxeSqqEOH4UDN0"  # 2.2GB zip: TMHINTQI/train/ wavs
 BVCC_ZENODO_RECORD = "6572573"
 
 AUDIOMOS25T3_TRAIN_ID = "1IoxKU_dS8uDdMEFZc8IBLp0he8Vz5xOH"
@@ -32,6 +34,15 @@ def _download_file(url: str, dest: str) -> None:
             bar.update(len(chunk))
 
 
+def _extract(path: str, out: str) -> None:
+    if path.endswith(".tar.gz") or path.endswith(".tgz"):
+        with tarfile.open(path, "r:gz") as tf:
+            tf.extractall(out)
+    elif path.endswith(".zip"):
+        with zipfile.ZipFile(path, "r") as zf:
+            zf.extractall(out)
+
+
 def download_bvcc(output_dir: str) -> None:
     """Download BVCC dataset from Zenodo record 6572573."""
     out = os.path.join(output_dir, "bvcc")
@@ -44,22 +55,31 @@ def download_bvcc(output_dir: str) -> None:
         dest = os.path.join(out, fname)
         if os.path.exists(dest):
             print(f"  Skipping {fname} (exists)")
-            continue
-        print(f"  Downloading {fname}...")
-        _download_file(url, dest)
-        if dest.endswith(".zip"):
-            with zipfile.ZipFile(dest, "r") as zf:
-                zf.extractall(out)
+        else:
+            print(f"  Downloading {fname}...")
+            _download_file(url, dest)
+        _extract(dest, out)
     print(f"BVCC -> {out}")
 
 
 def download_tmhint(output_dir: str) -> None:
-    """Clone TMHINT-QI-VoiceMOS2023 from GitHub."""
+    """Clone TMHINT-QI labels from GitHub and download audio from Google Drive."""
     out = os.path.join(output_dir, "tmhint")
-    if os.path.exists(out):
-        print(f"TMHINT exists at {out}, skipping.")
-        return
-    subprocess.run(["git", "clone", TMHINT_REPO, out], check=True)
+    if not os.path.exists(out):
+        subprocess.run(["git", "clone", TMHINT_REPO, out], check=True)
+    else:
+        print(f"TMHINT labels exist at {out}, skipping clone.")
+
+    # Audio zip extracts to TMHINTQI/train/ inside out/
+    audio_zip = os.path.join(out, "tmhint_audio.zip")
+    wav_dir = os.path.join(out, "TMHINTQI", "train")
+    if os.path.exists(wav_dir):
+        print("  TMHINT audio already extracted, skipping.")
+    else:
+        print("  Downloading TMHINT audio (~2.2 GB)...")
+        gdown.download(id=TMHINT_AUDIO_ID, output=audio_zip, quiet=False)
+        _extract(audio_zip, out)
+
     print(f"TMHINT -> {out}")
 
 
@@ -79,10 +99,12 @@ def download_audiomos25t3(output_dir: str) -> None:
             print(f"  Skipping {fname} (exists)")
             continue
         print(f"  Downloading {fname}...")
-        gdown.download(id=file_id, output=dest, quiet=False)
+        result = gdown.download(id=file_id, output=dest, quiet=False)
+        if result is None:
+            print(f"  WARNING: {fname} download failed (skipping)")
+            continue
         if dest.endswith(".zip"):
-            with zipfile.ZipFile(dest, "r") as zf:
-                zf.extractall(out)
+            _extract(dest, out)
     print(f"AudioMOS 2025 T3 -> {out}")
 
 
