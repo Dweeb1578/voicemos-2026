@@ -90,17 +90,18 @@ class WhisperMOSNet(nn.Module):
                 encoder_out = self.whisper_encoder(input_features).last_hidden_state
             whisper_feats = self.adapter(encoder_out)              # (B, 1500, proj_dim)
 
-        mel = self.mel_transform(waveforms)   # (B, 80, T_mel)
-        mel_db = self.amplitude_to_db(mel)                     # (B, 80, T_mel)
-        mel_out = self.mel_cnn(mel_db.unsqueeze(1))            # (B, 128, 1, 1)
-        mel_feats = self.mel_proj(mel_out.view(B, -1))         # (B, proj_dim)
+        # Mel branch and BiLSTM run in float32 -- AmplitudeToDB uses log10 which
+        # underflows to -inf for near-zero values in float16, producing NaN.
+        with torch.amp.autocast('cuda', enabled=False):
+            mel = self.mel_transform(waveforms.float())
+            mel_db = self.amplitude_to_db(mel)
+            mel_out = self.mel_cnn(mel_db.unsqueeze(1))
+            mel_feats = self.mel_proj(mel_out.view(B, -1))         # (B, proj_dim)
 
-        # Broadcast mel features across Whisper's time dimension
-        mel_feats = mel_feats.unsqueeze(1).expand(-1, WHISPER_SEQ_LEN, -1)  # (B, 1500, proj_dim)
-
-        # Fuse, run BiLSTM, attention-pool to utterance embedding
-        fused = torch.cat([whisper_feats, mel_feats], dim=-1)   # (B, 1500, 2*proj_dim)
-        lstm_out, _ = self.bilstm(fused)                        # (B, 1500, 2*proj_dim)
+            mel_feats = mel_feats.unsqueeze(1).expand(-1, WHISPER_SEQ_LEN, -1)
+            whisper_feats_f32 = whisper_feats.float()
+            fused = torch.cat([whisper_feats_f32, mel_feats], dim=-1)   # (B, 1500, 2*proj_dim)
+            lstm_out, _ = self.bilstm(fused)                            # (B, 1500, 2*proj_dim)
         attn = torch.softmax(self.attention(lstm_out), dim=1)   # (B, 1500, 1)
         pooled = (lstm_out * attn).sum(dim=1)                   # (B, 2*proj_dim)
 
