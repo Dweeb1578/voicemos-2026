@@ -73,7 +73,8 @@ def train(cfg: dict):
         print(f"Using encoder cache: {cache_dir}")
 
     model = WhisperMOSNet(
-        whisper_model=m_cfg["whisper_model"], proj_dim=m_cfg["proj_dim"]
+        whisper_model=m_cfg["whisper_model"], proj_dim=m_cfg["proj_dim"],
+        dropout=m_cfg.get("dropout", 0.0),
     ).to(device)
 
     if "pretrained_checkpoint" in t_cfg:
@@ -96,7 +97,8 @@ def train(cfg: dict):
     )
 
     optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=t_cfg["lr"]
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=t_cfg["lr"], weight_decay=t_cfg.get("weight_decay", 0.0),
     )
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=t_cfg["lr_gamma"])
     scaler = torch.cuda.amp.GradScaler()

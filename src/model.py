@@ -22,7 +22,8 @@ class WhisperMOSNet(nn.Module):
         proj_dim:      projection dimension shared by both branches
     """
 
-    def __init__(self, whisper_model: str = "openai/whisper-medium", proj_dim: int = 256):
+    def __init__(self, whisper_model: str = "openai/whisper-medium", proj_dim: int = 256,
+                 dropout: float = 0.1):
         super().__init__()
 
         whisper = WhisperModel.from_pretrained(whisper_model)
@@ -36,6 +37,7 @@ class WhisperMOSNet(nn.Module):
         self.adapter = nn.Sequential(
             nn.Linear(whisper_hidden, proj_dim),
             nn.LayerNorm(proj_dim),
+            nn.Dropout(dropout),
         )
 
         # Mel spectrogram transform (matches Whisper's internal preprocessing)
@@ -64,6 +66,7 @@ class WhisperMOSNet(nn.Module):
             bidirectional=True,
         )
 
+        self.dropout = nn.Dropout(dropout)
         self.attention = nn.Linear(proj_dim * 2, 1)
         self.acr_head = nn.Linear(proj_dim * 2, 1)
         self.ccr_head = nn.Linear(proj_dim * 2, 1)
@@ -103,6 +106,6 @@ class WhisperMOSNet(nn.Module):
             fused = torch.cat([whisper_feats_f32, mel_feats], dim=-1)   # (B, 1500, 2*proj_dim)
             lstm_out, _ = self.bilstm(fused)                            # (B, 1500, 2*proj_dim)
         attn = torch.softmax(self.attention(lstm_out), dim=1)   # (B, 1500, 1)
-        pooled = (lstm_out * attn).sum(dim=1)                   # (B, 2*proj_dim)
+        pooled = self.dropout((lstm_out * attn).sum(dim=1))     # (B, 2*proj_dim)
 
         return self.acr_head(pooled).squeeze(-1), self.ccr_head(pooled).squeeze(-1)

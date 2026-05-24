@@ -1,6 +1,7 @@
 model:
   whisper_model: "openai/whisper-medium"
   proj_dim: 256
+  dropout: 0.1
 
 training:
   train_manifest: "data/manifests/pretrain_train.csv"
@@ -8,6 +9,7 @@ training:
   batch_size: 16
   epochs: 30
   lr: 1.0e-4
+  weight_decay: 1.0e-4
   lr_gamma: 0.9999
   ccr_lambda: 0.0
   ccr_lambda_ramp_epochs: 0
