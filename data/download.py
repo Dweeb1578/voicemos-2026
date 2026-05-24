@@ -104,7 +104,11 @@ def download_audiomos25t3(output_dir: str) -> None:
             print(f"  WARNING: {fname} download failed (skipping)")
             continue
         if dest.endswith(".zip"):
-            _extract(dest, out)
+            if zipfile.is_zipfile(dest):
+                _extract(dest, out)
+            else:
+                os.remove(dest)
+                print(f"  WARNING: {fname} is not a valid zip (Drive quota/auth issue) -- skipping")
     print(f"AudioMOS 2025 T3 -> {out}")
 
 
