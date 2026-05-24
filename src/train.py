@@ -1,8 +1,8 @@
 """Training loop for WhisperMOSNet.
 
 Usage:
-    python src/train.py --config configs/pretrain.yaml
-    python src/train.py --config configs/finetune.yaml
+    python -m src.train --config configs/pretrain.yaml
+    python -m src.train --config configs/finetune.yaml
 """
 
 import argparse
@@ -24,7 +24,6 @@ def load_config(path: str) -> dict:
 
 
 def get_ccr_lambda(epoch: int, cfg: dict) -> float:
-    """Linearly ramp ccr_lambda from 0 to target over ramp_epochs."""
     target = cfg["training"]["ccr_lambda"]
     ramp = cfg["training"].get("ccr_lambda_ramp_epochs", 0)
     if ramp == 0:
@@ -32,25 +31,30 @@ def get_ccr_lambda(epoch: int, cfg: dict) -> float:
     return min(target, target * (epoch / ramp))
 
 
-def run_epoch(model, loader, loss_fn, optimizer, device, train: bool):
+def run_epoch(model, loader, loss_fn, optimizer, scaler, device, train: bool):
     model.train(train)
     total_loss = 0.0
     acr_preds, acr_targets = [], []
 
     for batch in loader:
-        inp = batch["input_features"].to(device)
         wav = batch["waveform"].to(device)
         acr_t = batch["acr"].to(device)
         ccr_t = batch["ccr"].to(device)
 
-        acr_p, ccr_p = model(inp, wav)
-        loss = loss_fn(acr_p, ccr_p, acr_t, ccr_t)
+        inp = batch["input_features"].to(device) if "input_features" in batch else None
+        enc = batch["encoder_feats"].to(device) if "encoder_feats" in batch else None
+
+        with torch.cuda.amp.autocast():
+            acr_p, ccr_p = model(inp, wav, encoder_feats=enc)
+            loss = loss_fn(acr_p, ccr_p, acr_t, ccr_t)
 
         if train:
             optimizer.zero_grad()
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
         total_loss += loss.item()
         acr_preds.extend(acr_p.detach().cpu().tolist())
@@ -64,6 +68,9 @@ def train(cfg: dict):
     print(f"Device: {device}")
 
     m_cfg, t_cfg = cfg["model"], cfg["training"]
+    cache_dir = t_cfg.get("cache_dir", None)
+    if cache_dir:
+        print(f"Using encoder cache: {cache_dir}")
 
     model = WhisperMOSNet(
         whisper_model=m_cfg["whisper_model"], proj_dim=m_cfg["proj_dim"]
@@ -74,8 +81,10 @@ def train(cfg: dict):
         model.load_state_dict(ckpt["model_state"])
         print(f"Loaded: {t_cfg['pretrained_checkpoint']}")
 
-    train_ds = MOSDataset(t_cfg["train_manifest"], whisper_model=m_cfg["whisper_model"])
-    dev_ds = MOSDataset(t_cfg["dev_manifest"], whisper_model=m_cfg["whisper_model"])
+    train_ds = MOSDataset(t_cfg["train_manifest"], whisper_model=m_cfg["whisper_model"],
+                          cache_dir=cache_dir)
+    dev_ds = MOSDataset(t_cfg["dev_manifest"], whisper_model=m_cfg["whisper_model"],
+                        cache_dir=cache_dir)
 
     train_loader = DataLoader(
         train_ds, batch_size=t_cfg["batch_size"], shuffle=True,
@@ -90,6 +99,7 @@ def train(cfg: dict):
         filter(lambda p: p.requires_grad, model.parameters()), lr=t_cfg["lr"]
     )
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=t_cfg["lr_gamma"])
+    scaler = torch.cuda.amp.GradScaler()
 
     os.makedirs(t_cfg["checkpoint_dir"], exist_ok=True)
     best_srcc = -1.0
@@ -97,8 +107,8 @@ def train(cfg: dict):
     for epoch in range(1, t_cfg["epochs"] + 1):
         loss_fn = MOSLoss(ccr_lambda=get_ccr_lambda(epoch, cfg))
 
-        tr_loss, tr_m = run_epoch(model, train_loader, loss_fn, optimizer, device, train=True)
-        dv_loss, dv_m = run_epoch(model, dev_loader, loss_fn, optimizer, device, train=False)
+        tr_loss, tr_m = run_epoch(model, train_loader, loss_fn, optimizer, scaler, device, train=True)
+        dv_loss, dv_m = run_epoch(model, dev_loader, loss_fn, optimizer, scaler, device, train=False)
         scheduler.step()
 
         print(

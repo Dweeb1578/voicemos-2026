@@ -11,6 +11,7 @@ training:
   lr_gamma: 0.9999
   ccr_lambda: 0.0
   ccr_lambda_ramp_epochs: 0
+  cache_dir: "data/encoder_cache"
   checkpoint_dir: "checkpoints/pretrain"
   checkpoint_every_n_epochs: 5
   num_workers: 2

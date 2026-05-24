@@ -68,23 +68,27 @@ class WhisperMOSNet(nn.Module):
         self.acr_head = nn.Linear(proj_dim * 2, 1)
         self.ccr_head = nn.Linear(proj_dim * 2, 1)
 
-    def forward(self, input_features: torch.Tensor, waveforms: torch.Tensor):
+    def forward(self, input_features: torch.Tensor, waveforms: torch.Tensor,
+                encoder_feats: torch.Tensor = None):
         """
         Args:
-            input_features: (B, 80, 3000) Whisper log-mel features
+            input_features: (B, 80, 3000) Whisper log-mel features  -- used when no cache
             waveforms:      (B, 160000) raw audio at 16kHz
+            encoder_feats:  (B, 1500, hidden) pre-extracted encoder outputs  -- skips encoder
 
         Returns:
             acr: (B,) predicted ACR scores
             ccr: (B,) predicted CCR scores
         """
-        B = input_features.size(0)
-        device = input_features.device
+        B = waveforms.size(0)
+        device = waveforms.device
 
-        # Whisper encoder path (frozen)
-        with torch.no_grad():
-            encoder_out = self.whisper_encoder(input_features).last_hidden_state
-        whisper_feats = self.adapter(encoder_out)  # (B, 1500, proj_dim)
+        if encoder_feats is not None:
+            whisper_feats = self.adapter(encoder_feats)            # (B, 1500, proj_dim)
+        else:
+            with torch.no_grad():
+                encoder_out = self.whisper_encoder(input_features).last_hidden_state
+            whisper_feats = self.adapter(encoder_out)              # (B, 1500, proj_dim)
 
         mel = self.mel_transform(waveforms)   # (B, 80, T_mel)
         mel_db = self.amplitude_to_db(mel)                     # (B, 80, T_mel)
