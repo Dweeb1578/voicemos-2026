@@ -86,8 +86,7 @@ class WhisperMOSNet(nn.Module):
             encoder_out = self.whisper_encoder(input_features).last_hidden_state
         whisper_feats = self.adapter(encoder_out)  # (B, 1500, proj_dim)
 
-        # Mel CNN path -- torchaudio transforms run on CPU
-        mel = self.mel_transform(waveforms.cpu()).to(device)   # (B, 80, T_mel)
+        mel = self.mel_transform(waveforms)   # (B, 80, T_mel)
         mel_db = self.amplitude_to_db(mel)                     # (B, 80, T_mel)
         mel_out = self.mel_cnn(mel_db.unsqueeze(1))            # (B, 128, 1, 1)
         mel_feats = self.mel_proj(mel_out.view(B, -1))         # (B, proj_dim)
