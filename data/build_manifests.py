@@ -140,7 +140,7 @@ def main():
         print(f"TMHINT: {len(train)} train, {len(dev)} dev")
 
     audiomos_dir = os.path.join(args.data_dir, "audiomos25t3")
-    if os.path.exists(audiomos_dir):
+    if os.path.exists(os.path.join(audiomos_dir, "labels.csv")):
         rows = parse_audiomos25t3(audiomos_dir)
         train, dev = split_rows(rows)
         all_train.extend(train)
