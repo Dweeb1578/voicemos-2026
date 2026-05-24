@@ -13,6 +13,7 @@ training:
   ccr_lambda_ramp_epochs: 0
   cache_dir: "data/encoder_cache"
   checkpoint_dir: "checkpoints/pretrain"
+  drive_checkpoint_dir: "/content/drive/MyDrive/voicemos2026/checkpoints"
   checkpoint_every_n_epochs: 5
   num_workers: 2
 

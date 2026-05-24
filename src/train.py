@@ -102,9 +102,25 @@ def train(cfg: dict):
     scaler = torch.cuda.amp.GradScaler()
 
     os.makedirs(t_cfg["checkpoint_dir"], exist_ok=True)
+    drive_dir = t_cfg.get("drive_checkpoint_dir", None)
+    if drive_dir:
+        os.makedirs(drive_dir, exist_ok=True)
     best_srcc = -1.0
 
-    for epoch in range(1, t_cfg["epochs"] + 1):
+    # Resume from latest Drive checkpoint if available
+    start_epoch = 1
+    if drive_dir:
+        import glob
+        drive_ckpts = sorted(glob.glob(os.path.join(drive_dir, "epoch_*.pt")))
+        if drive_ckpts:
+            latest = drive_ckpts[-1]
+            ckpt = torch.load(latest, map_location=device)
+            model.load_state_dict(ckpt["model_state"])
+            start_epoch = ckpt["epoch"] + 1
+            best_srcc = ckpt.get("best_srcc", -1.0)
+            print(f"Resumed from {latest} (epoch {ckpt['epoch']}, best SRCC so far: {best_srcc:.4f})")
+
+    for epoch in range(start_epoch, t_cfg["epochs"] + 1):
         loss_fn = MOSLoss(ccr_lambda=get_ccr_lambda(epoch, cfg))
 
         tr_loss, tr_m = run_epoch(model, train_loader, loss_fn, optimizer, scaler, device, train=True)
@@ -124,11 +140,17 @@ def train(cfg: dict):
                 os.path.join(t_cfg["checkpoint_dir"], "best.pt"),
             )
 
-        if epoch % t_cfg.get("checkpoint_every_n_epochs", 5) == 0:
-            torch.save(
-                {"epoch": epoch, "model_state": model.state_dict()},
-                os.path.join(t_cfg["checkpoint_dir"], f"epoch_{epoch:03d}.pt"),
-            )
+        save_every = t_cfg.get("checkpoint_every_n_epochs", 5)
+        if epoch % save_every == 0:
+            ckpt_data = {"epoch": epoch, "model_state": model.state_dict(), "best_srcc": best_srcc}
+            torch.save(ckpt_data, os.path.join(t_cfg["checkpoint_dir"], f"epoch_{epoch:03d}.pt"))
+            if drive_dir:
+                import shutil
+                shutil.copy(
+                    os.path.join(t_cfg["checkpoint_dir"], f"epoch_{epoch:03d}.pt"),
+                    os.path.join(drive_dir, f"epoch_{epoch:03d}.pt"),
+                )
+                print(f"  -> saved to Drive: epoch_{epoch:03d}.pt")
 
     print(f"Done. Best dev SRCC: {best_srcc:.4f}")
 
