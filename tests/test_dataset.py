@@ -64,3 +64,35 @@ def test_ccr_value_when_present():
         ds = MOSDataset(make_manifest(tmpdir, n=3, include_ccr=True), whisper_model="openai/whisper-tiny")
         assert not torch.isnan(ds[1]["ccr"])
         assert ds[2]["ccr"].item() == pytest.approx(1.0)
+
+
+def test_cache_dir_returns_encoder_feats():
+    from src.dataset import _cache_key
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = os.path.join(tmpdir, "cache")
+        os.makedirs(cache_dir)
+        manifest = make_manifest(tmpdir, n=2)
+
+        # Pre-populate cache with fake encoder feats (1500, 512) — shape doesn't need to match model
+        df = pd.read_csv(manifest)
+        for path in df["path"]:
+            np.save(os.path.join(cache_dir, _cache_key(path)), np.zeros((1500, 512), dtype=np.float16))
+
+        ds = MOSDataset(manifest, cache_dir=cache_dir)
+        item = ds[0]
+        assert "encoder_feats" in item
+        assert "input_features" not in item
+        assert item["encoder_feats"].shape == (1500, 512)
+        assert item["encoder_feats"].dtype == torch.float32  # loaded as float16, cast to float32
+
+
+def test_cache_key_deterministic():
+    from src.dataset import _cache_key
+    path = "/some/audio/file.wav"
+    assert _cache_key(path) == _cache_key(path)
+    assert _cache_key(path).endswith(".npy")
+
+
+def test_cache_key_unique_per_path():
+    from src.dataset import _cache_key
+    assert _cache_key("/path/a.wav") != _cache_key("/path/b.wav")

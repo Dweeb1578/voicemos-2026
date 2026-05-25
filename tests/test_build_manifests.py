@@ -21,9 +21,8 @@ def test_parse_tmhint_returns_required_columns():
         make_wav(os.path.join(wav_dir, "sys1_utt001.wav"))
         make_wav(os.path.join(wav_dir, "sys1_utt002.wav"))
         pd.DataFrame({
-            "filename": ["sys1_utt001.wav", "sys1_utt002.wav"],
-            "quality": [3.5, 4.0],
-            "intelligibility": [0.8, 0.9],
+            "file_name": ["sys1_utt001", "sys1_utt002"],  # no .wav — function appends it
+            "quality_score": [3.5, 4.0],
         }).to_csv(os.path.join(tmpdir, "scores.csv"), index=False)
 
         rows = parse_tmhint(tmpdir, label_csv="scores.csv", wav_subdir="wav")

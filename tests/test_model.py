@@ -46,3 +46,26 @@ def test_batch_size_1(tiny_model):
     acr, ccr = tiny_model(inp, wav)
     assert acr.shape == (1,)
     assert ccr.shape == (1,)
+
+
+def test_forward_with_encoder_feats(tiny_model):
+    # Bypass Whisper encoder using pre-extracted feats (as in cached training)
+    from src.model import WHISPER_HIDDEN_SIZES
+    hidden = WHISPER_HIDDEN_SIZES["openai/whisper-tiny"]
+    B = 2
+    encoder_feats = torch.randn(B, 1500, hidden)
+    wav = torch.randn(B, 160000)
+    acr, ccr = tiny_model(None, wav, encoder_feats=encoder_feats)
+    assert acr.shape == (B,)
+    assert ccr.shape == (B,)
+
+
+def test_encoder_not_called_when_feats_provided(tiny_model):
+    # When encoder_feats is given, Whisper encoder should not run
+    from src.model import WHISPER_HIDDEN_SIZES
+    hidden = WHISPER_HIDDEN_SIZES["openai/whisper-tiny"]
+    encoder_feats = torch.randn(1, 1500, hidden)
+    wav = torch.randn(1, 160000)
+    # Pass None for input_features — would crash if encoder ran
+    acr, ccr = tiny_model(None, wav, encoder_feats=encoder_feats)
+    assert acr.shape == (1,)
