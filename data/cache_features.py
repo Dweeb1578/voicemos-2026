@@ -4,11 +4,18 @@ Saves (1500, hidden_size) float16 arrays keyed by MD5 of audio path.
 ~3 MB/sample for whisper-medium → ~47 GB for 15.5K samples.
 
 Usage:
+    # Final layer (default)
     python -m data.cache_features \
         --manifests data/manifests/pretrain_train.csv data/manifests/pretrain_dev.csv \
         --cache_dir data/encoder_cache \
+        --whisper_model openai/whisper-medium
+
+    # Intermediate layer (e.g. layer 12 of 24 for whisper-medium)
+    python -m data.cache_features \
+        --manifests data/manifests/pretrain_train.csv data/manifests/pretrain_dev.csv \
+        --cache_dir data/encoder_cache_layer12 \
         --whisper_model openai/whisper-medium \
-        --batch_size 32
+        --layer 12
 """
 
 import argparse
@@ -34,6 +41,9 @@ def main():
     parser.add_argument("--cache_dir", required=True)
     parser.add_argument("--whisper_model", default="openai/whisper-medium")
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--layer", type=int, default=-1,
+                        help="Encoder layer to extract (-1 = final layer, 0 = embedding output, "
+                             "1..N = after transformer layer N). Whisper-medium has 24 layers.")
     args = parser.parse_args()
 
     os.makedirs(args.cache_dir, exist_ok=True)
@@ -58,6 +68,12 @@ def main():
     todo = [p for p in all_paths if not os.path.exists(os.path.join(args.cache_dir, cache_key(p)))]
     print(f"Total unique paths: {len(all_paths)}  to cache: {len(todo)}")
 
+    use_intermediate = args.layer != -1
+    if use_intermediate:
+        print(f"Extracting intermediate layer {args.layer}")
+    else:
+        print("Extracting final layer")
+
     with torch.no_grad(), torch.cuda.amp.autocast():
         for i in tqdm(range(0, len(todo), args.batch_size), desc="Extracting"):
             batch_paths = todo[i:i + args.batch_size]
@@ -68,7 +84,14 @@ def main():
 
             feats = feature_extractor(wavs, sampling_rate=16000, return_tensors="pt")
             inp = feats.input_features.to(device)
-            out = encoder(inp).last_hidden_state  # (B, T, hidden)
+
+            if use_intermediate:
+                enc_out = encoder(inp, output_hidden_states=True)
+                # hidden_states: tuple of (num_layers+1) tensors; index 0 = conv embedding output
+                out = enc_out.hidden_states[args.layer]  # (B, T, hidden)
+            else:
+                out = encoder(inp).last_hidden_state  # (B, T, hidden)
+
             out_np = out.half().cpu().numpy()
 
             for j, p in enumerate(batch_paths):

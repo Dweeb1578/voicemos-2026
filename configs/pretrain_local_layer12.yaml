@@ -1,0 +1,23 @@
+model:
+  whisper_model: "openai/whisper-medium"
+  proj_dim: 256
+  dropout: 0.1
+
+training:
+  train_manifest: "data/manifests/pretrain_train.csv"
+  dev_manifest: "data/manifests/pretrain_dev.csv"
+  batch_size: 16
+  epochs: 30
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  lr_gamma: 0.9999
+  ccr_lambda: 0.0
+  ccr_lambda_ramp_epochs: 0
+  cache_dir: "data/encoder_cache_layer12"
+  checkpoint_dir: "checkpoints/pretrain_layer12"
+  drive_checkpoint_dir: "checkpoints/pretrain_layer12_backup"
+  checkpoint_every_n_epochs: 5
+  num_workers: 0
+
+logging:
+  run_name: "pretrain-whisper-medium-layer12"
