@@ -7,9 +7,15 @@ Submission format (single flat file, all rows stacked):
 
 ACR is predicted directly by the (pretrained) ACR head, clamped to [1, 5].
 CCR has no trained head yet, so it is derived from the ACR head as a
-comparative score:  ccr = clamp(acr_b - acr_a, -3, 3).  Because SRCC is
+comparative score:  ccr = clamp(acr_a - acr_b, -3, 3).  Because SRCC is
 rank-based, an ACR model that ranks quality well also ranks A-vs-B
 preferences reasonably -- a legitimate baseline to validate the pipeline.
+
+Subtraction order (a - b, not b - a) was corrected after the 2026-06-06 dev
+submission scored CCR UTT-SRCC = -0.3685: the ground-truth convention is
+quality(A) - quality(B), so b - a was sign-inverted.  No CCR value saturates
+the +/-3 clamp, so flipping the order negates each prediction exactly and
+flips the SRCC to +0.3685.
 
 Usage:
     python scripts/predict_dev.py \
@@ -102,14 +108,14 @@ def main():
         for _, r in acr_df.iterrows()
     ]
 
-    # --- CCR: derive from ACR head, ccr = clamp(acr_b - acr_a, -3, 3) ---
+    # --- CCR: derive from ACR head, ccr = clamp(acr_a - acr_b, -3, 3) ---
     ccr_df = pd.read_csv(args.ccr_manifest)
     all_ccr_paths = list(ccr_df["path_a"]) + list(ccr_df["path_b"])
     ccr_acr = _predict_acr(model, all_ccr_paths, whisper_model, device, args.batch_size)
     ccr_rows = [
         {
             "sample_id": r["sample_id"],
-            "pred_score": min(3.0, max(-3.0, ccr_acr[r["path_b"]] - ccr_acr[r["path_a"]])),
+            "pred_score": min(3.0, max(-3.0, ccr_acr[r["path_a"]] - ccr_acr[r["path_b"]])),
         }
         for _, r in ccr_df.iterrows()
     ]
