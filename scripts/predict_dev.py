@@ -98,6 +98,7 @@ def main():
     model = WhisperMOSNet(
         whisper_model=whisper_model, proj_dim=m_cfg["proj_dim"],
         encoder_layer=m_cfg.get("encoder_layer", -1),
+        use_mel_branch=m_cfg.get("use_mel_branch", True),
     ).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state"])

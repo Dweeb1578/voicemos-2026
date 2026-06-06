@@ -86,3 +86,19 @@ def test_encoder_layer_param_changes_live_features():
     a_final, _ = m_final(inp, wav)
     a_mid, _ = m_mid(inp, wav)
     assert not torch.allclose(a_final, a_mid)
+
+
+def test_mel_branch_can_be_disabled():
+    from src.model import WhisperMOSNet
+    m = WhisperMOSNet(whisper_model="openai/whisper-tiny", proj_dim=64,
+                      use_mel_branch=False)
+    assert not hasattr(m, "mel_cnn")
+    inp, wav = make_batch(B=2)
+    acr, ccr = m(inp, wav)
+    assert acr.shape == (2,)
+
+
+def test_mel_branch_enabled_by_default():
+    from src.model import WhisperMOSNet
+    m = WhisperMOSNet(whisper_model="openai/whisper-tiny", proj_dim=64)
+    assert hasattr(m, "mel_cnn")

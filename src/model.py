@@ -23,9 +23,11 @@ class WhisperMOSNet(nn.Module):
     """
 
     def __init__(self, whisper_model: str = "openai/whisper-medium", proj_dim: int = 256,
-                 dropout: float = 0.1, encoder_layer: int = -1):
+                 dropout: float = 0.1, encoder_layer: int = -1,
+                 use_mel_branch: bool = True):
         super().__init__()
         self.encoder_layer = encoder_layer
+        self.use_mel_branch = use_mel_branch
 
         whisper = WhisperModel.from_pretrained(whisper_model)
         self.whisper_encoder = whisper.encoder
@@ -41,26 +43,28 @@ class WhisperMOSNet(nn.Module):
             nn.Dropout(dropout),
         )
 
-        # Mel spectrogram transform (matches Whisper's internal preprocessing)
-        self.mel_transform = T.MelSpectrogram(
-            sample_rate=16000, n_fft=400, hop_length=160, n_mels=80,
-        )
-        self.amplitude_to_db = T.AmplitudeToDB()
+        if self.use_mel_branch:
+            # Mel spectrogram transform (matches Whisper's internal preprocessing)
+            self.mel_transform = T.MelSpectrogram(
+                sample_rate=16000, n_fft=400, hop_length=160, n_mels=80,
+            )
+            self.amplitude_to_db = T.AmplitudeToDB()
 
-        # CNN branch: (B, 1, 80, T_mel) -> (B, proj_dim)
-        self.mel_cnn = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.AdaptiveAvgPool2d((1, 1)),
-        )
-        self.mel_proj = nn.Linear(128, proj_dim)
+            # CNN branch: (B, 1, 80, T_mel) -> (B, proj_dim)
+            self.mel_cnn = nn.Sequential(
+                nn.Conv2d(1, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(),
+                nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
+                nn.MaxPool2d(2, 2),
+                nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(),
+                nn.MaxPool2d(2, 2),
+                nn.AdaptiveAvgPool2d((1, 1)),
+            )
+            self.mel_proj = nn.Linear(128, proj_dim)
 
         # BiLSTM over fused (Whisper + mel) features
+        bilstm_input = proj_dim * 2 if self.use_mel_branch else proj_dim
         self.bilstm = nn.LSTM(
-            input_size=proj_dim * 2,
+            input_size=bilstm_input,
             hidden_size=proj_dim,
             num_layers=1,
             batch_first=True,
@@ -103,15 +107,17 @@ class WhisperMOSNet(nn.Module):
         # Mel branch and BiLSTM run in float32 -- AmplitudeToDB uses log10 which
         # underflows to -inf for near-zero values in float16, producing NaN.
         with torch.amp.autocast('cuda', enabled=False):
-            mel = self.mel_transform(waveforms.float())
-            mel_db = self.amplitude_to_db(mel)
-            mel_out = self.mel_cnn(mel_db.unsqueeze(1))
-            mel_feats = self.mel_proj(mel_out.view(B, -1))         # (B, proj_dim)
-
-            mel_feats = mel_feats.unsqueeze(1).expand(-1, WHISPER_SEQ_LEN, -1)
             whisper_feats_f32 = whisper_feats.float()
-            fused = torch.cat([whisper_feats_f32, mel_feats], dim=-1)   # (B, 1500, 2*proj_dim)
-            lstm_out, _ = self.bilstm(fused)                            # (B, 1500, 2*proj_dim)
+            if self.use_mel_branch:
+                mel = self.mel_transform(waveforms.float())
+                mel_db = self.amplitude_to_db(mel)
+                mel_out = self.mel_cnn(mel_db.unsqueeze(1))
+                mel_feats = self.mel_proj(mel_out.view(B, -1))         # (B, proj_dim)
+                mel_feats = mel_feats.unsqueeze(1).expand(-1, WHISPER_SEQ_LEN, -1)
+                fused = torch.cat([whisper_feats_f32, mel_feats], dim=-1)  # (B, 1500, 2*proj_dim)
+            else:
+                fused = whisper_feats_f32                                  # (B, 1500, proj_dim)
+            lstm_out, _ = self.bilstm(fused)
         attn = torch.softmax(self.attention(lstm_out), dim=1)   # (B, 1500, 1)
         pooled = self.dropout((lstm_out * attn).sum(dim=1))     # (B, 2*proj_dim)
 

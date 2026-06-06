@@ -81,6 +81,7 @@ def train(cfg: dict):
         whisper_model=m_cfg["whisper_model"], proj_dim=m_cfg["proj_dim"],
         dropout=m_cfg.get("dropout", 0.0),
         encoder_layer=m_cfg.get("encoder_layer", -1),
+        use_mel_branch=m_cfg.get("use_mel_branch", True),
     ).to(device)
 
     if "pretrained_checkpoint" in t_cfg:
