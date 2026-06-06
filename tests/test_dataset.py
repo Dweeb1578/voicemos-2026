@@ -96,3 +96,29 @@ def test_cache_key_deterministic():
 def test_cache_key_unique_per_path():
     from src.dataset import _cache_key
     assert _cache_key("/path/a.wav") != _cache_key("/path/b.wav")
+
+
+def test_dataset_returns_source(tmp_path):
+    # Manifest with a source column
+    wav = tmp_path / "a.wav"
+    import soundfile as sf, numpy as np
+    sf.write(wav, np.zeros(16000, dtype="float32"), 16000)
+    df = pd.DataFrame([{"path": str(wav), "acr": 3.0, "ccr": float("nan"),
+                        "language": "en", "system": "x", "split": "train",
+                        "source": "bvcc"}])
+    man = tmp_path / "m.csv"
+    df.to_csv(man, index=False)
+    ds = MOSDataset(str(man), whisper_model="openai/whisper-tiny")
+    assert ds[0]["source"] == "bvcc"
+
+
+def test_dataset_source_defaults_when_missing(tmp_path):
+    wav = tmp_path / "a.wav"
+    import soundfile as sf, numpy as np
+    sf.write(wav, np.zeros(16000, dtype="float32"), 16000)
+    df = pd.DataFrame([{"path": str(wav), "acr": 3.0, "ccr": float("nan"),
+                        "language": "en", "system": "x", "split": "train"}])
+    man = tmp_path / "m.csv"
+    df.to_csv(man, index=False)
+    ds = MOSDataset(str(man), whisper_model="openai/whisper-tiny")
+    assert ds[0]["source"] == "unknown"

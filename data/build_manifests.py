@@ -44,6 +44,7 @@ def parse_bvcc(bvcc_dir: str) -> list:
                 "language": "en",
                 "system": str(row["filename"]).split("-")[0],
                 "split": split_label,
+                "source": "bvcc",
             })
     return rows
 
@@ -75,6 +76,7 @@ def parse_tmhint(tmhint_dir: str, label_csv: str = "TMHINTQI/raw_data.csv", wav_
             "language": "zh",
             "system": str(row["file_name"]).split("_")[0],
             "split": "train",
+            "source": "tmhint",
         })
     return rows
 
@@ -98,6 +100,7 @@ def parse_audiomos25t3(audiomos_dir: str, label_csv: str = "labels.csv", wav_sub
             "language": "en",
             "system": "unknown",
             "split": "train",
+            "source": "audiomos",
         })
     return rows
 

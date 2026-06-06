@@ -66,4 +66,6 @@ class MOSDataset(Dataset):
             dtype=torch.float32,
         )
 
-        return {**feat_dict, "waveform": waveform, "acr": acr, "ccr": ccr}
+        source = row["source"] if "source" in self.df.columns else "unknown"
+        return {**feat_dict, "waveform": waveform, "acr": acr, "ccr": ccr,
+                "source": source}
