@@ -23,8 +23,9 @@ class WhisperMOSNet(nn.Module):
     """
 
     def __init__(self, whisper_model: str = "openai/whisper-medium", proj_dim: int = 256,
-                 dropout: float = 0.1):
+                 dropout: float = 0.1, encoder_layer: int = -1):
         super().__init__()
+        self.encoder_layer = encoder_layer
 
         whisper = WhisperModel.from_pretrained(whisper_model)
         self.whisper_encoder = whisper.encoder
@@ -90,7 +91,13 @@ class WhisperMOSNet(nn.Module):
             whisper_feats = self.adapter(encoder_feats)            # (B, 1500, proj_dim)
         else:
             with torch.no_grad():
-                encoder_out = self.whisper_encoder(input_features).last_hidden_state
+                if self.encoder_layer == -1:
+                    encoder_out = self.whisper_encoder(input_features).last_hidden_state
+                else:
+                    hs = self.whisper_encoder(
+                        input_features, output_hidden_states=True
+                    ).hidden_states
+                    encoder_out = hs[self.encoder_layer]
             whisper_feats = self.adapter(encoder_out)              # (B, 1500, proj_dim)
 
         # Mel branch and BiLSTM run in float32 -- AmplitudeToDB uses log10 which

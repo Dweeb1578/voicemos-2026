@@ -69,3 +69,20 @@ def test_encoder_not_called_when_feats_provided(tiny_model):
     # Pass None for input_features — would crash if encoder ran
     acr, ccr = tiny_model(None, wav, encoder_feats=encoder_feats)
     assert acr.shape == (1,)
+
+
+def test_encoder_layer_param_changes_live_features():
+    import torch
+    from src.model import WhisperMOSNet
+    inp, wav = make_batch(B=1)
+    torch.manual_seed(0)
+    m_final = WhisperMOSNet(whisper_model="openai/whisper-tiny", proj_dim=64,
+                            encoder_layer=-1)
+    torch.manual_seed(0)
+    m_mid = WhisperMOSNet(whisper_model="openai/whisper-tiny", proj_dim=64,
+                          encoder_layer=2)
+    # Same weights (same seed), different layer => different ACR output
+    m_mid.load_state_dict(m_final.state_dict())
+    a_final, _ = m_final(inp, wav)
+    a_mid, _ = m_mid(inp, wav)
+    assert not torch.allclose(a_final, a_mid)

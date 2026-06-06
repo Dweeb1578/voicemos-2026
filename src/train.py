@@ -80,6 +80,7 @@ def train(cfg: dict):
     model = WhisperMOSNet(
         whisper_model=m_cfg["whisper_model"], proj_dim=m_cfg["proj_dim"],
         dropout=m_cfg.get("dropout", 0.0),
+        encoder_layer=m_cfg.get("encoder_layer", -1),
     ).to(device)
 
     if "pretrained_checkpoint" in t_cfg:

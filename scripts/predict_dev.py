@@ -95,7 +95,10 @@ def main():
     whisper_model = m_cfg["whisper_model"]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = WhisperMOSNet(whisper_model=whisper_model, proj_dim=m_cfg["proj_dim"]).to(device)
+    model = WhisperMOSNet(
+        whisper_model=whisper_model, proj_dim=m_cfg["proj_dim"],
+        encoder_layer=m_cfg.get("encoder_layer", -1),
+    ).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state"])
     model.eval()
