@@ -16,6 +16,7 @@ from src.dataset import MOSDataset
 from src.evaluate import compute_metrics
 from src.losses import MOSLoss
 from src.model import WhisperMOSNet
+from src.train_utils import build_source_ids
 
 
 def load_config(path: str) -> dict:
@@ -44,9 +45,13 @@ def run_epoch(model, loader, loss_fn, optimizer, scaler, device, train: bool):
         inp = batch["input_features"].to(device) if "input_features" in batch else None
         enc = batch["encoder_feats"].to(device) if "encoder_feats" in batch else None
 
+        src_ids = None
+        if "source" in batch:
+            src_ids = build_source_ids(batch["source"]).to(device)
+
         with torch.cuda.amp.autocast():
             acr_p, ccr_p = model(inp, wav, encoder_feats=enc)
-            loss = loss_fn(acr_p, ccr_p, acr_t, ccr_t)
+            loss = loss_fn(acr_p, ccr_p, acr_t, ccr_t, source_ids=src_ids)
 
         if train:
             optimizer.zero_grad()
@@ -123,7 +128,10 @@ def train(cfg: dict):
             print(f"Resumed from {latest} (epoch {ckpt['epoch']}, best SRCC so far: {best_srcc:.4f})")
 
     for epoch in range(start_epoch, t_cfg["epochs"] + 1):
-        loss_fn = MOSLoss(ccr_lambda=get_ccr_lambda(epoch, cfg))
+        loss_fn = MOSLoss(
+            ccr_lambda=get_ccr_lambda(epoch, cfg),
+            acr_rank_alpha=cfg["training"].get("acr_rank_alpha", 0.0),
+        )
 
         tr_loss, tr_m = run_epoch(model, train_loader, loss_fn, optimizer, scaler, device, train=True)
         dv_loss, dv_m = run_epoch(model, dev_loader, loss_fn, optimizer, scaler, device, train=False)
