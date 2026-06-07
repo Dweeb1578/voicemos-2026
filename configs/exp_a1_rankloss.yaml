@@ -1,0 +1,28 @@
+# Approach A / Experiment A1: rank-aware ACR loss (vs the 0.574 MSE-only baseline).
+# Whisper-medium, frozen, final layer, mel branch on -- acr_rank_alpha is the only new variable.
+model:
+  whisper_model: "openai/whisper-medium"
+  proj_dim: 256
+  dropout: 0.1
+  encoder_layer: -1
+  use_mel_branch: true
+
+training:
+  train_manifest: "data/manifests/pretrain_train.csv"
+  dev_manifest: "data/manifests/pretrain_dev.csv"
+  batch_size: 16
+  epochs: 30
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  lr_gamma: 0.9999
+  ccr_lambda: 0.0
+  ccr_lambda_ramp_epochs: 0
+  acr_rank_alpha: 1.0
+  cache_dir: "data/encoder_cache"
+  checkpoint_dir: "checkpoints/exp_a1"
+  drive_checkpoint_dir: "/content/drive/MyDrive/voicemos2026/checkpoints/exp_a1"
+  checkpoint_every_n_epochs: 5
+  num_workers: 2
+
+logging:
+  run_name: "exp-a1-rankloss"
