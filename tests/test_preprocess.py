@@ -50,3 +50,31 @@ def test_write_manifest_creates_csv():
         assert set(df.columns) >= {"path", "acr", "ccr", "language", "system", "split"}
         assert pd.isna(df.iloc[0]["ccr"])
         assert df.iloc[1]["ccr"] == pytest.approx(0.3)
+
+
+def test_write_manifest_preserves_source():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rows = [
+            {"path": "/a.wav", "acr": 3.5, "ccr": float("nan"), "language": "en",
+             "system": "s1", "split": "train", "source": "bvcc"},
+            {"path": "/b.wav", "acr": 4.0, "ccr": 0.3, "language": "zh",
+             "system": "s2", "split": "dev", "source": "tmhint"},
+        ]
+        out = os.path.join(tmpdir, "manifest.csv")
+        write_manifest(rows, out)
+        df = pd.read_csv(out)
+        assert "source" in df.columns
+        assert df.iloc[0]["source"] == "bvcc"
+        assert df.iloc[1]["source"] == "tmhint"
+
+
+def test_write_manifest_source_defaults_to_unknown_when_missing():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rows = [
+            {"path": "/a.wav", "acr": 3.5, "ccr": float("nan"), "language": "en",
+             "system": "s1", "split": "train"},  # no source key
+        ]
+        out = os.path.join(tmpdir, "manifest.csv")
+        write_manifest(rows, out)
+        df = pd.read_csv(out)
+        assert df.iloc[0]["source"] == "unknown"

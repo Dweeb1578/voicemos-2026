@@ -29,5 +29,6 @@ def trim_and_pad(audio: np.ndarray, sr: int = TARGET_SR, max_duration: float = M
 
 def write_manifest(rows: list, out_path: str) -> None:
     """Write list of row dicts to a CSV manifest file."""
-    df = pd.DataFrame(rows, columns=["path", "acr", "ccr", "language", "system", "split"])
+    df = pd.DataFrame(rows, columns=["path", "acr", "ccr", "language", "system", "split", "source"])
+    df["source"] = df["source"].fillna("unknown")
     df.to_csv(out_path, index=False)
