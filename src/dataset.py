@@ -34,9 +34,10 @@ class MOSDataset(Dataset):
     """
 
     def __init__(self, manifest_csv: str, whisper_model: str = "openai/whisper-medium",
-                 cache_dir: str = None):
+                 cache_dir: str = None, load_waveform: bool = True):
         self.df = pd.read_csv(manifest_csv)
         self.cache_dir = cache_dir
+        self.load_waveform = load_waveform
         if cache_dir is None:
             self.feature_extractor = WhisperFeatureExtractor.from_pretrained(whisper_model)
         else:
@@ -47,9 +48,16 @@ class MOSDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         row = self.df.iloc[idx]
-        audio, _ = resample_and_normalize(row["path"])
-        audio = trim_and_pad(audio)
-        waveform = torch.tensor(audio, dtype=torch.float32)
+        # Decode audio only when needed: the mel branch needs the waveform, and the
+        # no-cache path needs it for the Whisper feature extractor. With cached features
+        # AND the mel branch off, skip decoding entirely -- that per-epoch librosa work
+        # is the CPU bottleneck on free Colab (2 cores), not the GPU.
+        audio = None
+        if self.load_waveform or self.cache_dir is None:
+            audio, _ = resample_and_normalize(row["path"])
+            audio = trim_and_pad(audio)
+        waveform = (torch.tensor(audio, dtype=torch.float32)
+                    if self.load_waveform else torch.zeros(1, dtype=torch.float32))
 
         if self.cache_dir is not None:
             enc = np.load(os.path.join(self.cache_dir, _cache_key(row["path"])))

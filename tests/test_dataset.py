@@ -112,6 +112,27 @@ def test_dataset_returns_source(tmp_path):
     assert ds[0]["source"] == "bvcc"
 
 
+def test_dataset_skips_waveform_when_disabled(tmp_path):
+    # With a cache hit AND load_waveform=False, the audio file must NOT be opened.
+    # Use a nonexistent path: if the dataset tried to decode it, this would raise.
+    import numpy as np
+    from src.dataset import _cache_key
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    fake_path = "/nonexistent/clip.wav"
+    np.save(cache / _cache_key(fake_path), np.zeros((1500, 384), dtype=np.float16))
+    df = pd.DataFrame([{"path": fake_path, "acr": 3.0, "ccr": float("nan"),
+                        "language": "en", "system": "s", "split": "train", "source": "bvcc"}])
+    man = tmp_path / "m.csv"
+    df.to_csv(man, index=False)
+    ds = MOSDataset(str(man), whisper_model="openai/whisper-tiny",
+                    cache_dir=str(cache), load_waveform=False)
+    item = ds[0]
+    assert item["waveform"].shape == (1,)            # placeholder, not a decoded clip
+    assert item["encoder_feats"].shape == (1500, 384)
+    assert item["source"] == "bvcc"
+
+
 def test_dataset_source_defaults_when_missing(tmp_path):
     wav = tmp_path / "a.wav"
     import soundfile as sf, numpy as np

@@ -96,10 +96,11 @@ def train(cfg: dict):
         model.load_state_dict(ckpt["model_state"], strict=False)
         print(f"Loaded: {t_cfg['pretrained_checkpoint']}")
 
+    load_waveform = m_cfg.get("use_mel_branch", True)
     train_ds = MOSDataset(t_cfg["train_manifest"], whisper_model=m_cfg["whisper_model"],
-                          cache_dir=cache_dir)
+                          cache_dir=cache_dir, load_waveform=load_waveform)
     dev_ds = MOSDataset(t_cfg["dev_manifest"], whisper_model=m_cfg["whisper_model"],
-                        cache_dir=cache_dir)
+                        cache_dir=cache_dir, load_waveform=load_waveform)
 
     train_loader = DataLoader(
         train_ds, batch_size=t_cfg["batch_size"], shuffle=True,

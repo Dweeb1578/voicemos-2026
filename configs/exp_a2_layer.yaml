@@ -1,17 +1,17 @@
-# Approach A / Experiment A2: rank loss + intermediate encoder layer 12 (vs the final layer).
+# Approach A / Experiment A2: rank loss + encoder layer 12, mel branch OFF.
 # Requires the layer-12 feature cache (data/encoder_cache_layer12).
 model:
   whisper_model: "openai/whisper-medium"
   proj_dim: 256
   dropout: 0.1
   encoder_layer: 12
-  use_mel_branch: true
+  use_mel_branch: false
 
 training:
   train_manifest: "data/manifests/pretrain_train.csv"
   dev_manifest: "data/manifests/pretrain_dev.csv"
   batch_size: 16
-  epochs: 30
+  epochs: 15
   lr: 1.0e-4
   weight_decay: 1.0e-4
   lr_gamma: 0.9999
@@ -25,4 +25,4 @@ training:
   num_workers: 2
 
 logging:
-  run_name: "exp-a2-layer12"
+  run_name: "exp-a2-layer12-nomel"

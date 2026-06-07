@@ -1,5 +1,6 @@
-# Approach A / Experiment A3: rank loss + mel-CNN branch ABLATED (Whisper features only).
-# Reuses the final-layer cache (the mel branch reads the raw waveform, which is always provided).
+# Approach A / Experiment A3: NO rank loss (acr_rank_alpha=0), mel branch OFF, final layer.
+# Baseline that isolates the rank-loss gain: compare A3 (no rank) vs A1 (rank).
+# (Filename kept as exp_a3_nomel for notebook/checkpoint compatibility; all runs are now mel-off.)
 model:
   whisper_model: "openai/whisper-medium"
   proj_dim: 256
@@ -11,13 +12,13 @@ training:
   train_manifest: "data/manifests/pretrain_train.csv"
   dev_manifest: "data/manifests/pretrain_dev.csv"
   batch_size: 16
-  epochs: 30
+  epochs: 15
   lr: 1.0e-4
   weight_decay: 1.0e-4
   lr_gamma: 0.9999
   ccr_lambda: 0.0
   ccr_lambda_ramp_epochs: 0
-  acr_rank_alpha: 1.0
+  acr_rank_alpha: 0.0
   cache_dir: "data/encoder_cache"
   checkpoint_dir: "checkpoints/exp_a3_nomel"
   drive_checkpoint_dir: "/content/drive/MyDrive/voicemos2026/checkpoints/exp_a3_nomel"
@@ -25,4 +26,4 @@ training:
   num_workers: 2
 
 logging:
-  run_name: "exp-a3-nomel"
+  run_name: "exp-a3-norank-baseline"
