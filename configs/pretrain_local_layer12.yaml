@@ -2,6 +2,7 @@ model:
   whisper_model: "openai/whisper-medium"
   proj_dim: 256
   dropout: 0.1
+  encoder_layer: 12
 
 training:
   train_manifest: "data/manifests/pretrain_train.csv"
