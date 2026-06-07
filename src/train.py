@@ -32,6 +32,13 @@ def get_ccr_lambda(epoch: int, cfg: dict) -> float:
     return min(target, target * (epoch / ramp))
 
 
+def trainable_state_dict(model):
+    """Model state excluding the frozen Whisper encoder (it is reloaded from HF on
+    construction, so persisting its ~1.4 GB every checkpoint is pure waste).
+    Load back with strict=False -- the encoder comes from the HF init."""
+    return {k: v for k, v in model.state_dict().items() if not k.startswith("whisper_encoder.")}
+
+
 def run_epoch(model, loader, loss_fn, optimizer, scaler, device, train: bool):
     model.train(train)
     total_loss = 0.0
@@ -86,7 +93,7 @@ def train(cfg: dict):
 
     if "pretrained_checkpoint" in t_cfg:
         ckpt = torch.load(t_cfg["pretrained_checkpoint"], map_location=device)
-        model.load_state_dict(ckpt["model_state"])
+        model.load_state_dict(ckpt["model_state"], strict=False)
         print(f"Loaded: {t_cfg['pretrained_checkpoint']}")
 
     train_ds = MOSDataset(t_cfg["train_manifest"], whisper_model=m_cfg["whisper_model"],
@@ -124,7 +131,7 @@ def train(cfg: dict):
         if drive_ckpts:
             latest = drive_ckpts[-1]
             ckpt = torch.load(latest, map_location=device)
-            model.load_state_dict(ckpt["model_state"])
+            model.load_state_dict(ckpt["model_state"], strict=False)
             start_epoch = ckpt["epoch"] + 1
             best_srcc = ckpt.get("best_srcc", -1.0)
             print(f"Resumed from {latest} (epoch {ckpt['epoch']}, best SRCC so far: {best_srcc:.4f})")
@@ -149,7 +156,7 @@ def train(cfg: dict):
             best_srcc = dv_m["srcc"]
             best_path = os.path.join(t_cfg["checkpoint_dir"], "best.pt")
             torch.save(
-                {"epoch": epoch, "model_state": model.state_dict(), "dev_srcc": best_srcc},
+                {"epoch": epoch, "model_state": trainable_state_dict(model), "dev_srcc": best_srcc},
                 best_path,
             )
             if drive_dir:
@@ -159,7 +166,7 @@ def train(cfg: dict):
 
         save_every = t_cfg.get("checkpoint_every_n_epochs", 5)
         if epoch % save_every == 0:
-            ckpt_data = {"epoch": epoch, "model_state": model.state_dict(), "best_srcc": best_srcc}
+            ckpt_data = {"epoch": epoch, "model_state": trainable_state_dict(model), "best_srcc": best_srcc}
             torch.save(ckpt_data, os.path.join(t_cfg["checkpoint_dir"], f"epoch_{epoch:03d}.pt"))
             if drive_dir:
                 import shutil

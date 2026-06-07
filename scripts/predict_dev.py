@@ -101,7 +101,7 @@ def main():
         use_mel_branch=m_cfg.get("use_mel_branch", True),
     ).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    model.load_state_dict(ckpt["model_state"])
+    model.load_state_dict(ckpt["model_state"], strict=False)  # encoder comes from HF init
     model.eval()
 
     # --- ACR: direct prediction, clamped to [1, 5] ---
