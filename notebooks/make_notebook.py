@@ -51,7 +51,7 @@ def sh(*cmd):
     """Run a command, streaming output; raise on failure (fail-fast)."""
     cmd = [sys.executable if c == 'python' else c for c in cmd]
     print('>>', ' '.join(cmd), flush=True)
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, env={**os.environ, 'PYTHONUNBUFFERED': '1'})
 
 print('Repo ready at', REPO_DIR)'''),
 
