@@ -61,11 +61,13 @@ class _InferenceClips(Dataset):
         }
 
 
-def _predict_acr(model, paths, whisper_model, device, batch_size):
+def _predict_acr(model, paths, whisper_model, device, batch_size, num_workers=4):
     """Return a dict {path: acr_score} for every unique path."""
     unique = list(dict.fromkeys(paths))  # dedupe, preserve order
     ds = _InferenceClips(unique, whisper_model)
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    # Decode + log-mel run in worker procs (the CPU cost) so they overlap the GPU
+    # forward -- the dev set is ~6k clips and single-threaded decode dominates.
+    loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     preds = []
     with torch.no_grad():
@@ -86,6 +88,7 @@ def main():
     parser.add_argument("--ccr-manifest", default="data/manifests/dev_ccr.csv")
     parser.add_argument("--output", default="predictions.csv")
     parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--zip", default="submission.zip")
     args = parser.parse_args()
 
@@ -106,7 +109,7 @@ def main():
 
     # --- ACR: direct prediction, clamped to [1, 5] ---
     acr_df = pd.read_csv(args.acr_manifest)
-    acr_scores = _predict_acr(model, acr_df["path"], whisper_model, device, args.batch_size)
+    acr_scores = _predict_acr(model, acr_df["path"], whisper_model, device, args.batch_size, args.num_workers)
     acr_rows = [
         {"sample_id": r["sample_id"], "pred_score": min(5.0, max(1.0, acr_scores[r["path"]]))}
         for _, r in acr_df.iterrows()
@@ -115,7 +118,7 @@ def main():
     # --- CCR: derive from ACR head, ccr = clamp(acr_a - acr_b, -3, 3) ---
     ccr_df = pd.read_csv(args.ccr_manifest)
     all_ccr_paths = list(ccr_df["path_a"]) + list(ccr_df["path_b"])
-    ccr_acr = _predict_acr(model, all_ccr_paths, whisper_model, device, args.batch_size)
+    ccr_acr = _predict_acr(model, all_ccr_paths, whisper_model, device, args.batch_size, args.num_workers)
     ccr_rows = [
         {
             "sample_id": r["sample_id"],
