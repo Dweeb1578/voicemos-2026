@@ -6,8 +6,10 @@ Usage:
 """
 
 import argparse
+import math
 import os
 
+import numpy as np
 import torch
 import yaml
 from torch.utils.data import DataLoader
@@ -72,7 +74,7 @@ def run_epoch(model, loader, loss_fn, optimizer, scaler, device, train: bool):
         acr_preds.extend(acr_p.detach().cpu().tolist())
         acr_targets.extend(acr_t.cpu().tolist())
 
-    return total_loss / len(loader), compute_metrics(acr_preds, acr_targets)
+    return total_loss / len(loader), compute_metrics(acr_preds, acr_targets), acr_preds, acr_targets
 
 
 def train(cfg: dict):
@@ -118,6 +120,10 @@ def train(cfg: dict):
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=t_cfg["lr_gamma"])
     scaler = torch.cuda.amp.GradScaler()
 
+    assert len(train_ds) > 0, f"train manifest is empty: {t_cfg['train_manifest']}"
+    assert len(dev_ds) > 0, f"dev manifest is empty: {t_cfg['dev_manifest']}"
+    print(f"train={len(train_ds)} dev={len(dev_ds)} samples")
+
     os.makedirs(t_cfg["checkpoint_dir"], exist_ok=True)
     drive_dir = t_cfg.get("drive_checkpoint_dir", None)
     if drive_dir:
@@ -137,20 +143,51 @@ def train(cfg: dict):
             best_srcc = ckpt.get("best_srcc", -1.0)
             print(f"Resumed from {latest} (epoch {ckpt['epoch']}, best SRCC so far: {best_srcc:.4f})")
 
+    # Smoke check: one dev forward BEFORE the long loop, so a NaN/constant
+    # prediction bug surfaces in seconds rather than after a full training run
+    # that would silently save nothing (a NaN SRCC never beats the -1.0 init).
+    model.eval()
+    with torch.no_grad():
+        b = next(iter(dev_loader))
+        inp0 = b["input_features"].to(device) if "input_features" in b else None
+        enc0 = b["encoder_feats"].to(device) if "encoder_feats" in b else None
+        acr0, _ = model(inp0, b["waveform"].to(device), encoder_feats=enc0)
+        a0 = acr0.detach().cpu().float().numpy()
+        print(f"[smoke] dev ACR preds: n={a0.size} nan={int(np.isnan(a0).sum())} "
+              f"std={np.nanstd(a0):.4g} min={np.nanmin(a0):.4g} max={np.nanmax(a0):.4g}")
+        if np.isnan(a0).any():
+            print("[smoke] WARNING: model emits NaN before any training -- inspect the "
+                  "cached features for inf/NaN and the fp16 forward path.")
+
     for epoch in range(start_epoch, t_cfg["epochs"] + 1):
         loss_fn = MOSLoss(
             ccr_lambda=get_ccr_lambda(epoch, cfg),
             acr_rank_alpha=cfg["training"].get("acr_rank_alpha", 0.0),
         )
 
-        tr_loss, tr_m = run_epoch(model, train_loader, loss_fn, optimizer, scaler, device, train=True)
-        dv_loss, dv_m = run_epoch(model, dev_loader, loss_fn, optimizer, scaler, device, train=False)
+        tr_loss, tr_m, _, _ = run_epoch(model, train_loader, loss_fn, optimizer, scaler, device, train=True)
+        dv_loss, dv_m, dv_preds, dv_targets = run_epoch(model, dev_loader, loss_fn, optimizer, scaler, device, train=False)
         scheduler.step()
 
         print(
             f"Epoch {epoch:03d} | "
             f"train loss={tr_loss:.4f} srcc={tr_m['srcc']:.4f} | "
             f"dev loss={dv_loss:.4f} srcc={dv_m['srcc']:.4f}"
+        )
+
+        # A NaN dev SRCC is why a run can "succeed" yet save nothing. Print what
+        # made it NaN -- degenerate predictions (all-NaN/constant) or targets.
+        if math.isnan(dv_m["srcc"]):
+            dp, dt = np.array(dv_preds), np.array(dv_targets)
+            print(f"  !! dev SRCC is NaN @ epoch {epoch}. "
+                  f"preds: nan={int(np.isnan(dp).sum())}/{dp.size} std={np.nanstd(dp):.4g} "
+                  f"min={np.nanmin(dp):.4g} max={np.nanmax(dp):.4g} | "
+                  f"targets: nan={int(np.isnan(dt).sum())}/{dt.size} std={np.nanstd(dt):.4g}")
+
+        # Always keep the latest model so a run is never wasted, even when SRCC is NaN.
+        torch.save(
+            {"epoch": epoch, "model_state": trainable_state_dict(model), "dev_srcc": dv_m["srcc"]},
+            os.path.join(t_cfg["checkpoint_dir"], "last.pt"),
         )
 
         if dv_m["srcc"] > best_srcc:
@@ -176,6 +213,18 @@ def train(cfg: dict):
                     os.path.join(drive_dir, f"epoch_{epoch:03d}.pt"),
                 )
                 print(f"  -> saved to Drive: epoch_{epoch:03d}.pt")
+
+    # Never finish a run with no submittable checkpoint: if SRCC was NaN every
+    # epoch, best.pt was never written -- fall back to last.pt with a loud warning
+    # so predict_dev can still run and the smoke/NaN diagnostics above are actionable.
+    best_path = os.path.join(t_cfg["checkpoint_dir"], "best.pt")
+    if not os.path.exists(best_path):
+        import shutil
+        last_path = os.path.join(t_cfg["checkpoint_dir"], "last.pt")
+        print("WARNING: dev SRCC never beat the -1.0 init (NaN every epoch?). "
+              "Copying last.pt -> best.pt so the pipeline completes; the model is "
+              "likely degenerate -- act on the NaN diagnostic above before submitting.")
+        shutil.copy(last_path, best_path)
 
     print(f"Done. Best dev SRCC: {best_srcc:.4f}")
 
