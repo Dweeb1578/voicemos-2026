@@ -132,9 +132,11 @@ def main():
     print(f"predictions -> {args.output} "
           f"({len(acr_rows)} ACR + {len(ccr_rows)} CCR = {len(out_df)} rows)")
 
-    # zip -j equivalent: store predictions.csv at archive root, no folders
+    # CodaBench's scorer reads a file named exactly "predictions.csv" at the archive
+    # root. Always use that arcname regardless of the local --output name (e.g.
+    # predictions_a1.csv) -- a mismatched name makes scoring silently return {} / NA.
     with zipfile.ZipFile(args.zip, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(args.output, arcname=os.path.basename(args.output))
+        zf.write(args.output, arcname="predictions.csv")
     print(f"submission -> {args.zip}")
 
 
