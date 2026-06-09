@@ -128,9 +128,13 @@ def download_nisqa(output_dir: str) -> None:
     else:
         dest = os.path.join(out, "NISQA_Corpus.zip")
         if not os.path.exists(dest):
-            print("  Downloading NISQA Corpus (~1 GB)...")
+            print("  Downloading NISQA Corpus (~16 GB zip)...")
             _download_file(NISQA_ZENODO_ZIP, dest)
         _extract(dest, out)
+        # The ~16 GB zip is dead weight once extracted -- delete it to reclaim disk.
+        if os.path.exists(dest):
+            os.remove(dest)
+            print("  Removed NISQA_Corpus.zip after extraction.")
     print(f"NISQA -> {out}")
 
 
