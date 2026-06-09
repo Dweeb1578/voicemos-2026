@@ -1,0 +1,29 @@
+# Approach A / mel-on + rank on KAGGLE: restore the mel-CNN branch + rank-aware ACR loss.
+# Tests whether rank helps when the mel branch is present (A1 mel-off regressed to 0.534).
+# Reuses the shared final-layer encoder cache; mel branch decodes waveforms per epoch
+# (parallelized via num_workers). Cache -> /kaggle/temp, checkpoints -> /kaggle/working, no Drive.
+model:
+  whisper_model: "openai/whisper-medium"
+  proj_dim: 256
+  dropout: 0.1
+  encoder_layer: -1
+  use_mel_branch: true
+
+training:
+  train_manifest: "data/manifests/pretrain_train.csv"
+  dev_manifest: "data/manifests/pretrain_dev.csv"
+  batch_size: 16
+  epochs: 8
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  lr_gamma: 0.9999
+  ccr_lambda: 0.0
+  ccr_lambda_ramp_epochs: 0
+  acr_rank_alpha: 1.0
+  cache_dir: "/kaggle/temp/encoder_cache"
+  checkpoint_dir: "/kaggle/working/checkpoints/exp_mel_rank"
+  checkpoint_every_n_epochs: 2
+  num_workers: 4
+
+logging:
+  run_name: "exp-mel-rank-kaggle"
