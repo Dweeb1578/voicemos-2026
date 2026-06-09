@@ -1,0 +1,30 @@
+# Approach B / B2 on KAGGLE: NISQA + TMHINT (BVCC dropped), PER-SOURCE Z-NORM MOS.
+# Identical to B1 except it trains on z-normalized manifests (data/manifests_znorm).
+# predict_dev must use --score-mode rescale (model predicts ~N(0,1)).
+# SAME cache_dir as B1: audio paths are identical, only the acr labels differ.
+model:
+  whisper_model: "openai/whisper-medium"
+  proj_dim: 256
+  dropout: 0.1
+  encoder_layer: -1
+  use_mel_branch: true
+
+training:
+  train_manifest: "data/manifests_znorm/pretrain_train.csv"
+  dev_manifest: "data/manifests_znorm/pretrain_dev.csv"
+  batch_size: 16
+  epochs: 10
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  lr_gamma: 0.9999
+  ccr_lambda: 0.0
+  ccr_lambda_ramp_epochs: 0
+  acr_rank_alpha: 0.0
+  cache_dir: "/kaggle/temp/encoder_cache_b"
+  checkpoint_dir: "/kaggle/working/checkpoints/exp_b2"
+  checkpoint_every_n_epochs: 2
+  early_stop_patience: 3
+  num_workers: 4
+
+logging:
+  run_name: "exp-b2-nisqa-tmhint-znorm"
