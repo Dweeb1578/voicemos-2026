@@ -63,9 +63,25 @@ from kaggle_secrets import UserSecretsClient
 os.environ['HF_TOKEN'] = UserSecretsClient().get_secret('HF_TOKEN')
 print('HF_TOKEN loaded from Kaggle Secrets.')'''),
 
-    ("code", '''# Download domain-closer training data: NISQA (degraded speech) + TMHINT (Mandarin quality).
-# BVCC is intentionally NOT downloaded (TTS-naturalness domain hurt transfer).
-sh('python', 'data/download.py', '--output', DATA_DIR, '--datasets', 'nisqa', 'tmhint')'''),
+    ("markdown", '''### NISQA via Kaggle Dataset (no download)
+**Add Input** (right panel) -> search **`nisqa-corpus`** -> add **`pratt3000/nisqa-corpus`**.
+It mounts read-only at `/kaggle/input/...` -- instant, and costs ZERO writable disk. We do
+NOT download NISQA: the 16 GB download fills Kaggle's disk and hangs the kernel.'''),
+
+    ("code", '''# NISQA: link the attached read-only dataset into the path build_manifests expects.
+# TMHINT (~2.2 GB) is small and downloads fine, so we still fetch that. BVCC is excluded.
+import os, glob
+os.makedirs(DATA_DIR, exist_ok=True)
+hits = glob.glob('/kaggle/input/**/NISQA_corpus*.csv', recursive=True)
+assert hits, ('NISQA dataset not attached. Right panel -> Add Input -> search '
+              '"nisqa-corpus" -> add pratt3000/nisqa-corpus, then re-run this cell.')
+nisqa_src = os.path.dirname(hits[0])          # dir holding NISQA_corpus_file.csv
+nisqa_link = os.path.join(DATA_DIR, 'nisqa')
+if not os.path.islink(nisqa_link) and not os.path.exists(nisqa_link):
+    os.symlink(nisqa_src, nisqa_link)
+print('NISQA linked:', nisqa_link, '->', nisqa_src)
+
+sh('python', 'data/download.py', '--output', DATA_DIR, '--datasets', 'tmhint')'''),
 
     ("code", '''# Build manifests TWICE from the same NISQA+TMHINT data:
 #   data/manifests        -> raw MOS        (B1)
@@ -84,7 +100,8 @@ sh('python', '-m', 'data.build_manifests', '--data_dir', DATA_DIR,
 df = pd.read_csv('data/manifests/pretrain_train.csv')
 assert 'source' in df.columns, f'source column missing. cols={list(df.columns)}'
 print('Train composition:', df['source'].value_counts().to_dict())
-assert set(df['source'].unique()) <= {'nisqa', 'tmhint'}, 'unexpected source (BVCC should be absent)'
+assert set(df['source'].unique()) == {'nisqa', 'tmhint'}, \
+    f"expected both nisqa+tmhint, got {set(df['source'].unique())} (NISQA link/paths wrong?)"
 # The shared cache requires raw and znorm manifests to reference the SAME audio paths.
 for split in ['pretrain_train.csv', 'pretrain_dev.csv']:
     p_raw = set(pd.read_csv(f'data/manifests/{split}')['path'])
