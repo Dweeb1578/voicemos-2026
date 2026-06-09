@@ -41,6 +41,12 @@ def trainable_state_dict(model):
     return {k: v for k, v in model.state_dict().items() if not k.startswith("whisper_encoder.")}
 
 
+def should_stop_early(epochs_no_improve: int, patience: int) -> bool:
+    """True when early stopping should fire: patience>0 and dev SRCC has not improved
+    for at least `patience` consecutive epochs. patience=0 disables early stopping."""
+    return patience > 0 and epochs_no_improve >= patience
+
+
 def run_epoch(model, loader, loss_fn, optimizer, scaler, device, train: bool):
     model.train(train)
     total_loss = 0.0
@@ -129,6 +135,8 @@ def train(cfg: dict):
     if drive_dir:
         os.makedirs(drive_dir, exist_ok=True)
     best_srcc = -1.0
+    epochs_no_improve = 0
+    patience = t_cfg.get("early_stop_patience", 0)  # 0 = disabled (run all epochs)
 
     # Resume from latest Drive checkpoint if available
     start_epoch = 1
@@ -192,6 +200,7 @@ def train(cfg: dict):
 
         if dv_m["srcc"] > best_srcc:
             best_srcc = dv_m["srcc"]
+            epochs_no_improve = 0
             best_path = os.path.join(t_cfg["checkpoint_dir"], "best.pt")
             torch.save(
                 {"epoch": epoch, "model_state": trainable_state_dict(model), "dev_srcc": best_srcc},
@@ -201,6 +210,8 @@ def train(cfg: dict):
                 import shutil
                 shutil.copy(best_path, os.path.join(drive_dir, "pretrain_best.pt"))
                 print(f"  -> best.pt saved to Drive (epoch {epoch}, SRCC {best_srcc:.4f})")
+        else:
+            epochs_no_improve += 1
 
         save_every = t_cfg.get("checkpoint_every_n_epochs", 5)
         if epoch % save_every == 0:
@@ -213,6 +224,11 @@ def train(cfg: dict):
                     os.path.join(drive_dir, f"epoch_{epoch:03d}.pt"),
                 )
                 print(f"  -> saved to Drive: epoch_{epoch:03d}.pt")
+
+        if should_stop_early(epochs_no_improve, patience):
+            print(f"Early stop at epoch {epoch}: dev SRCC has not improved for "
+                  f"{patience} epoch(s) (best {best_srcc:.4f}).")
+            break
 
     # Never finish a run with no submittable checkpoint: if SRCC was NaN every
     # epoch, best.pt was never written -- fall back to last.pt with a loud warning

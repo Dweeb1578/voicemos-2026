@@ -21,6 +21,7 @@ training:
   cache_dir: "/kaggle/temp/encoder_cache"
   checkpoint_dir: "/kaggle/working/checkpoints/exp_mel_norank"
   checkpoint_every_n_epochs: 2
+  early_stop_patience: 3  # stop if dev SRCC hasn't improved for 3 epochs (A1 peaked at ~3)
   num_workers: 4
 
 logging:
