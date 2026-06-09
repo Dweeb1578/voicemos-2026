@@ -80,6 +80,26 @@ def _predict_acr(model, paths, whisper_model, device, batch_size, num_workers=4)
     return dict(zip(unique, preds))
 
 
+def rescale_to_range(values, lo, hi):
+    """Linearly map values from [min,max] to [lo,hi]. Strictly monotonic, so SRCC is
+    preserved exactly -- used for z-normalized models whose raw predictions (~N(0,1))
+    must land in the submission range without the rank-destroying hard clamp. If all
+    values are equal (max==min), returns all `lo` (avoids division by zero)."""
+    values = list(values)
+    mn, mx = min(values), max(values)
+    if mx == mn:
+        return [lo] * len(values)
+    span = mx - mn
+    return [lo + (v - mn) / span * (hi - lo) for v in values]
+
+
+def _score(raw, lo, hi, mode):
+    """Map raw predictions into [lo,hi] either by clamp (default) or rank-preserving rescale."""
+    if mode == "rescale":
+        return rescale_to_range(raw, lo, hi)
+    return [min(hi, max(lo, v)) for v in raw]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default="checkpoints/pretrain/best.pt")
@@ -89,6 +109,9 @@ def main():
     parser.add_argument("--output", default="predictions.csv")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--score-mode", choices=["clamp", "rescale"], default="clamp",
+                        help="clamp: hard-clip to range (raw-MOS models). "
+                             "rescale: rank-preserving linear remap (z-normalized models).")
     parser.add_argument("--zip", default="submission.zip")
     args = parser.parse_args()
 
@@ -107,25 +130,22 @@ def main():
     model.load_state_dict(ckpt["model_state"], strict=False)  # encoder comes from HF init
     model.eval()
 
-    # --- ACR: direct prediction, clamped to [1, 5] ---
+    # --- ACR: direct prediction, mapped into [1, 5] (clamp or rank-preserving rescale) ---
     acr_df = pd.read_csv(args.acr_manifest)
     acr_scores = _predict_acr(model, acr_df["path"], whisper_model, device, args.batch_size, args.num_workers)
-    acr_rows = [
-        {"sample_id": r["sample_id"], "pred_score": min(5.0, max(1.0, acr_scores[r["path"]]))}
-        for _, r in acr_df.iterrows()
-    ]
+    acr_raw = [acr_scores[r["path"]] for _, r in acr_df.iterrows()]
+    acr_mapped = _score(acr_raw, 1.0, 5.0, args.score_mode)
+    acr_rows = [{"sample_id": r["sample_id"], "pred_score": s}
+                for (_, r), s in zip(acr_df.iterrows(), acr_mapped)]
 
-    # --- CCR: derive from ACR head, ccr = clamp(acr_a - acr_b, -3, 3) ---
+    # --- CCR: derive from ACR head, ccr = (acr_a - acr_b) mapped into [-3, 3] ---
     ccr_df = pd.read_csv(args.ccr_manifest)
     all_ccr_paths = list(ccr_df["path_a"]) + list(ccr_df["path_b"])
     ccr_acr = _predict_acr(model, all_ccr_paths, whisper_model, device, args.batch_size, args.num_workers)
-    ccr_rows = [
-        {
-            "sample_id": r["sample_id"],
-            "pred_score": min(3.0, max(-3.0, ccr_acr[r["path_a"]] - ccr_acr[r["path_b"]])),
-        }
-        for _, r in ccr_df.iterrows()
-    ]
+    ccr_raw = [ccr_acr[r["path_a"]] - ccr_acr[r["path_b"]] for _, r in ccr_df.iterrows()]
+    ccr_mapped = _score(ccr_raw, -3.0, 3.0, args.score_mode)
+    ccr_rows = [{"sample_id": r["sample_id"], "pred_score": s}
+                for (_, r), s in zip(ccr_df.iterrows(), ccr_mapped)]
 
     out_df = pd.DataFrame(acr_rows + ccr_rows, columns=["sample_id", "pred_score"])
     out_df.to_csv(args.output, index=False)
