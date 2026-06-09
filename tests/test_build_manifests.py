@@ -58,6 +58,10 @@ def _make_nisqa(tmpdir):
     os.makedirs(deg)
     for name in ["a.wav", "b.wav", "c.wav"]:
         make_wav(os.path.join(deg, name))
+    # Per-condition CSV (no filepath_deg) -- must be ignored in favor of the per-file one.
+    pd.DataFrame({
+        "db": ["NISQA_TRAIN_SIM"], "con": [1], "mos": [3.0],
+    }).to_csv(os.path.join(corpus, "NISQA_corpus_con.csv"), index=False)
     pd.DataFrame({
         "db": ["NISQA_TRAIN_SIM", "NISQA_VAL_LIVE", "NISQA_TEST_P501"],
         "filepath_deg": ["deg/a.wav", "deg/b.wav", "deg/c.wav"],

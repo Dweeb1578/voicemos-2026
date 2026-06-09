@@ -110,28 +110,36 @@ def parse_audiomos25t3(audiomos_dir: str, label_csv: str = "labels.csv", wav_sub
 def parse_nisqa(nisqa_dir: str) -> list:
     """Parse the NISQA Corpus (degraded-speech quality MOS).
 
-    Locates NISQA_corpus*.csv by glob (robust to the exact dir/file name); the corpus
-    root is the CSV's directory and filepath_deg is relative to it. Keeps only the
-    TRAIN/VAL splits (the TEST_* splits carry license restrictions). Columns used:
-    db (split name), filepath_deg (degraded wav), mos (target).
+    The corpus ships two CSVs: a per-FILE table (NISQA_corpus_file.csv, has filepath_deg
+    + per-clip mos -- what we need) and a per-CONDITION aggregate (NISQA_corpus_con.csv,
+    no per-clip path). Scan all NISQA_corpus*.csv and pick the per-file one (the first
+    with a filepath_deg column). The corpus root is that CSV's directory; filepath_deg
+    is relative to it. Keep only TRAIN/VAL splits (TEST_* carry license restrictions).
     """
-    matches = glob.glob(os.path.join(nisqa_dir, "**", "NISQA_corpus*.csv"), recursive=True)
+    matches = sorted(glob.glob(os.path.join(nisqa_dir, "**", "NISQA_corpus*.csv"), recursive=True))
     if not matches:
         return []
-    csv_path = matches[0]
+    df = csv_path = None
+    seen = {}
+    for m in matches:
+        cand = pd.read_csv(m)
+        seen[os.path.basename(m)] = list(cand.columns)
+        if {"db", "filepath_deg", "mos"} <= set(cand.columns):
+            df, csv_path = cand, m
+            break
+    assert df is not None, (
+        f"No NISQA per-file CSV (db+filepath_deg+mos) under {nisqa_dir}. "
+        f"CSVs seen: {seen}")
     corpus_root = os.path.dirname(csv_path)
-    df = pd.read_csv(csv_path)
-    required = {"db", "filepath_deg", "mos"}
-    assert required <= set(df.columns), \
-        f"NISQA CSV missing columns {required - set(df.columns)}; got {list(df.columns)}"
 
-    rows = []
+    rows, missing = [], 0
     for _, row in df.iterrows():
         db = str(row["db"])
         if not (db.startswith("NISQA_TRAIN") or db.startswith("NISQA_VAL")):
             continue
         wav_path = os.path.join(corpus_root, str(row["filepath_deg"]))
         if not os.path.exists(wav_path):
+            missing += 1
             continue
         rows.append({
             "path": os.path.abspath(wav_path),
@@ -142,6 +150,7 @@ def parse_nisqa(nisqa_dir: str) -> list:
             "split": "train",
             "source": "nisqa",
         })
+    print(f"  NISQA: {os.path.basename(csv_path)} -> {len(rows)} clips kept, {missing} wav paths missing")
     return rows
 
 
