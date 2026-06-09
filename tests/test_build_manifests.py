@@ -7,7 +7,7 @@ import pytest
 import soundfile as sf
 
 from data.build_manifests import (
-    parse_tmhint, parse_audiomos25t3, parse_nisqa, normalize_per_source,
+    parse_tmhint, parse_audiomos25t3, parse_nisqa, normalize_per_source, cap_rows,
 )
 
 
@@ -102,3 +102,17 @@ def test_normalize_per_source_constant_source_no_div0():
     train = [{"source": "x", "acr": 2.0}, {"source": "x", "acr": 2.0}]
     normalize_per_source(train, [])
     assert all(np.isfinite(r["acr"]) for r in train)  # std==0 guard -> no NaN/inf
+
+
+def test_cap_rows_caps_and_is_deterministic():
+    rows = [{"i": i} for i in range(100)]
+    out = cap_rows(rows, 10)
+    assert len(out) == 10
+    assert cap_rows(rows, 10) == out  # seeded -> same subsample every call
+
+
+def test_cap_rows_noop_when_unset_or_small():
+    rows = [{"i": i} for i in range(5)]
+    assert cap_rows(rows, 0) is rows      # 0 = no cap, returns original
+    assert cap_rows(rows, None) is rows   # None = no cap
+    assert len(cap_rows(rows, 50)) == 5   # cap larger than len -> unchanged

@@ -70,18 +70,27 @@ sh('python', 'data/download.py', '--output', DATA_DIR, '--datasets', 'nisqa', 't
     ("code", '''# Build manifests TWICE from the same NISQA+TMHINT data:
 #   data/manifests        -> raw MOS        (B1)
 #   data/manifests_znorm  -> per-source z-norm (B2)
-# Same audio paths in both => the encoder cache (keyed by path) is shared.
+# --max-per-source 7500 caps each source (seeded) so the shared cache stays ~15k clips
+# (~45 GB, the size that fit on the mel runs) -- NISQA TRAIN+VAL + TMHINT uncapped would
+# be ~25k clips (~75 GB) and blow Kaggle's ~57.6 GB disk cap. The fixed seed makes both
+# builds pick the SAME clips, so the path sets are identical => the cache is shared.
 import pandas as pd
+CAP = '7500'
 sh('python', '-m', 'data.build_manifests', '--data_dir', DATA_DIR,
-   '--output_dir', 'data/manifests', '--datasets', 'nisqa', 'tmhint')
+   '--output_dir', 'data/manifests', '--datasets', 'nisqa', 'tmhint', '--max-per-source', CAP)
 sh('python', '-m', 'data.build_manifests', '--data_dir', DATA_DIR,
    '--output_dir', 'data/manifests_znorm', '--datasets', 'nisqa', 'tmhint',
-   '--normalize', 'per_source_z')
+   '--max-per-source', CAP, '--normalize', 'per_source_z')
 df = pd.read_csv('data/manifests/pretrain_train.csv')
 assert 'source' in df.columns, f'source column missing. cols={list(df.columns)}'
 print('Train composition:', df['source'].value_counts().to_dict())
 assert set(df['source'].unique()) <= {'nisqa', 'tmhint'}, 'unexpected source (BVCC should be absent)'
-print('Manifests built (raw + znorm).')'''),
+# The shared cache requires raw and znorm manifests to reference the SAME audio paths.
+for split in ['pretrain_train.csv', 'pretrain_dev.csv']:
+    p_raw = set(pd.read_csv(f'data/manifests/{split}')['path'])
+    p_zn = set(pd.read_csv(f'data/manifests_znorm/{split}')['path'])
+    assert p_raw == p_zn, f'{split}: raw vs znorm path mismatch -> cache would not cover B2'
+print('Manifests built (raw + znorm); path sets identical -> cache is shared.')'''),
 
     ("code", '''# Materialize the official dev set (FLAC) + dev manifests.
 sh('python', 'data/prepare_dev.py', '--output', DATA_DIR + '/track1_dev')'''),

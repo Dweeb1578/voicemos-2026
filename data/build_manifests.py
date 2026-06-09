@@ -164,6 +164,14 @@ def normalize_per_source(train_rows: list, dev_rows: list) -> None:
             r["acr"] = (r["acr"] - mean) / std
 
 
+def cap_rows(rows: list, n, seed: int = 42) -> list:
+    """Randomly subsample rows to at most n (seeded, deterministic). n=None/0 -> unchanged.
+    Used to keep the encoder cache within Kaggle's disk cap and to size sources comparably."""
+    if n and len(rows) > n:
+        return random.Random(seed).sample(rows, n)
+    return rows
+
+
 def split_rows(rows: list, train_ratio: float = 0.9, seed: int = 42):
     rng = random.Random(seed)
     shuffled = rows[:]
@@ -186,6 +194,10 @@ def main():
                         help="Which sources to include (explicit composition).")
     parser.add_argument("--normalize", choices=["none", "per_source_z"], default="none",
                         help="per_source_z: standardize acr to mean 0/std 1 within each source.")
+    parser.add_argument("--max-per-source", type=int, default=0,
+                        help="Cap each source to at most N clips (seeded subsample). "
+                             "0 = no cap. Keeps the encoder cache within Kaggle's disk limit "
+                             "and sizes sources comparably.")
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -193,7 +205,7 @@ def main():
 
     bvcc_dir = os.path.join(args.data_dir, "bvcc")
     if "bvcc" in args.datasets and os.path.exists(bvcc_dir):
-        rows = parse_bvcc(bvcc_dir)
+        rows = cap_rows(parse_bvcc(bvcc_dir), args.max_per_source)
         train, dev = split_rows(rows)
         all_train.extend(train)
         all_dev.extend(dev)
@@ -201,7 +213,7 @@ def main():
 
     tmhint_dir = os.path.join(args.data_dir, "tmhint")
     if "tmhint" in args.datasets and os.path.exists(tmhint_dir):
-        rows = parse_tmhint(tmhint_dir)
+        rows = cap_rows(parse_tmhint(tmhint_dir), args.max_per_source)
         train, dev = split_rows(rows)
         all_train.extend(train)
         all_dev.extend(dev)
@@ -209,7 +221,7 @@ def main():
 
     audiomos_dir = os.path.join(args.data_dir, "audiomos25t3")
     if "audiomos" in args.datasets and os.path.exists(os.path.join(audiomos_dir, "labels.csv")):
-        rows = parse_audiomos25t3(audiomos_dir)
+        rows = cap_rows(parse_audiomos25t3(audiomos_dir), args.max_per_source)
         train, dev = split_rows(rows)
         all_train.extend(train)
         all_dev.extend(dev)
@@ -217,7 +229,7 @@ def main():
 
     nisqa_dir = os.path.join(args.data_dir, "nisqa")
     if "nisqa" in args.datasets and os.path.exists(nisqa_dir):
-        rows = parse_nisqa(nisqa_dir)
+        rows = cap_rows(parse_nisqa(nisqa_dir), args.max_per_source)
         train, dev = split_rows(rows)
         all_train.extend(train)
         all_dev.extend(dev)
