@@ -5,8 +5,10 @@ Usage:
 """
 
 import argparse
+import glob
 import os
 import random
+from collections import defaultdict
 
 import pandas as pd
 
@@ -105,6 +107,63 @@ def parse_audiomos25t3(audiomos_dir: str, label_csv: str = "labels.csv", wav_sub
     return rows
 
 
+def parse_nisqa(nisqa_dir: str) -> list:
+    """Parse the NISQA Corpus (degraded-speech quality MOS).
+
+    Locates NISQA_corpus*.csv by glob (robust to the exact dir/file name); the corpus
+    root is the CSV's directory and filepath_deg is relative to it. Keeps only the
+    TRAIN/VAL splits (the TEST_* splits carry license restrictions). Columns used:
+    db (split name), filepath_deg (degraded wav), mos (target).
+    """
+    matches = glob.glob(os.path.join(nisqa_dir, "**", "NISQA_corpus*.csv"), recursive=True)
+    if not matches:
+        return []
+    csv_path = matches[0]
+    corpus_root = os.path.dirname(csv_path)
+    df = pd.read_csv(csv_path)
+    required = {"db", "filepath_deg", "mos"}
+    assert required <= set(df.columns), \
+        f"NISQA CSV missing columns {required - set(df.columns)}; got {list(df.columns)}"
+
+    rows = []
+    for _, row in df.iterrows():
+        db = str(row["db"])
+        if not (db.startswith("NISQA_TRAIN") or db.startswith("NISQA_VAL")):
+            continue
+        wav_path = os.path.join(corpus_root, str(row["filepath_deg"]))
+        if not os.path.exists(wav_path):
+            continue
+        rows.append({
+            "path": os.path.abspath(wav_path),
+            "acr": float(row["mos"]),
+            "ccr": float("nan"),
+            "language": "en",
+            "system": db,
+            "split": "train",
+            "source": "nisqa",
+        })
+    return rows
+
+
+def normalize_per_source(train_rows: list, dev_rows: list) -> None:
+    """Standardize acr to mean 0 / std 1 within each source. Stats are computed on the
+    TRAIN rows per source and applied to both train and dev (std==0 -> left unchanged;
+    a dev-only source with no train stats is left unchanged). Mutates rows in place."""
+    by_src = defaultdict(list)
+    for r in train_rows:
+        by_src[r["source"]].append(r["acr"])
+    stats = {}
+    for src, vals in by_src.items():
+        mean = sum(vals) / len(vals)
+        var = sum((v - mean) ** 2 for v in vals) / len(vals)
+        std = var ** 0.5
+        stats[src] = (mean, std if std > 0 else 1.0)
+    for r in train_rows + dev_rows:
+        if r["source"] in stats:
+            mean, std = stats[r["source"]]
+            r["acr"] = (r["acr"] - mean) / std
+
+
 def split_rows(rows: list, train_ratio: float = 0.9, seed: int = 42):
     rng = random.Random(seed)
     shuffled = rows[:]
@@ -121,13 +180,19 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", default="data/datasets")
     parser.add_argument("--output_dir", default="data/manifests")
+    parser.add_argument("--datasets", nargs="+",
+                        choices=["bvcc", "tmhint", "audiomos", "nisqa"],
+                        default=["bvcc", "tmhint", "audiomos", "nisqa"],
+                        help="Which sources to include (explicit composition).")
+    parser.add_argument("--normalize", choices=["none", "per_source_z"], default="none",
+                        help="per_source_z: standardize acr to mean 0/std 1 within each source.")
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
     all_train, all_dev = [], []
 
     bvcc_dir = os.path.join(args.data_dir, "bvcc")
-    if os.path.exists(bvcc_dir):
+    if "bvcc" in args.datasets and os.path.exists(bvcc_dir):
         rows = parse_bvcc(bvcc_dir)
         train, dev = split_rows(rows)
         all_train.extend(train)
@@ -135,7 +200,7 @@ def main():
         print(f"BVCC: {len(train)} train, {len(dev)} dev")
 
     tmhint_dir = os.path.join(args.data_dir, "tmhint")
-    if os.path.exists(tmhint_dir):
+    if "tmhint" in args.datasets and os.path.exists(tmhint_dir):
         rows = parse_tmhint(tmhint_dir)
         train, dev = split_rows(rows)
         all_train.extend(train)
@@ -143,12 +208,24 @@ def main():
         print(f"TMHINT: {len(train)} train, {len(dev)} dev")
 
     audiomos_dir = os.path.join(args.data_dir, "audiomos25t3")
-    if os.path.exists(os.path.join(audiomos_dir, "labels.csv")):
+    if "audiomos" in args.datasets and os.path.exists(os.path.join(audiomos_dir, "labels.csv")):
         rows = parse_audiomos25t3(audiomos_dir)
         train, dev = split_rows(rows)
         all_train.extend(train)
         all_dev.extend(dev)
         print(f"AudioMOS 2025 T3: {len(train)} train, {len(dev)} dev")
+
+    nisqa_dir = os.path.join(args.data_dir, "nisqa")
+    if "nisqa" in args.datasets and os.path.exists(nisqa_dir):
+        rows = parse_nisqa(nisqa_dir)
+        train, dev = split_rows(rows)
+        all_train.extend(train)
+        all_dev.extend(dev)
+        print(f"NISQA: {len(train)} train, {len(dev)} dev")
+
+    if args.normalize == "per_source_z":
+        normalize_per_source(all_train, all_dev)
+        print("Applied per-source z-normalization to acr.")
 
     write_manifest(all_train, os.path.join(args.output_dir, "pretrain_train.csv"))
     write_manifest(all_dev, os.path.join(args.output_dir, "pretrain_dev.csv"))

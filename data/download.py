@@ -17,6 +17,7 @@ from tqdm import tqdm
 TMHINT_REPO = "https://github.com/dhimasryan/TMHINT-QI-VoiceMOS2023.git"
 TMHINT_AUDIO_ID = "1TMDiz6dnS76hxyeAcCQxeSqqEOH4UDN0"  # 2.2GB zip: TMHINTQI/train/ wavs
 BVCC_ZENODO_RECORD = "6572573"
+NISQA_ZENODO_ZIP = "https://zenodo.org/record/4728081/files/NISQA_Corpus.zip"
 
 AUDIOMOS25T3_TRAIN_ID = "1IoxKU_dS8uDdMEFZc8IBLp0he8Vz5xOH"
 AUDIOMOS25T3_DEV_LABELS_ID = "1i6gfL4eukxXe1bGjwxul5se_wyAnm_Eo"
@@ -112,12 +113,33 @@ def download_audiomos25t3(output_dir: str) -> None:
     print(f"AudioMOS 2025 T3 -> {out}")
 
 
+def download_nisqa(output_dir: str) -> None:
+    """Download the NISQA Corpus (degraded-speech quality MOS) from Zenodo.
+
+    ~14k samples with simulated (codec, packet loss, noise, clipping, bandpass) and
+    live distortions -- a close match for speech-enhancement quality. Extracts to
+    output_dir/nisqa/NISQA_Corpus/ with NISQA_corpus_file.csv (db, filepath_deg, mos).
+    """
+    out = os.path.join(output_dir, "nisqa")
+    os.makedirs(out, exist_ok=True)
+    import glob
+    if glob.glob(os.path.join(out, "**", "NISQA_corpus*.csv"), recursive=True):
+        print("  NISQA already extracted, skipping.")
+    else:
+        dest = os.path.join(out, "NISQA_Corpus.zip")
+        if not os.path.exists(dest):
+            print("  Downloading NISQA Corpus (~1 GB)...")
+            _download_file(NISQA_ZENODO_ZIP, dest)
+        _extract(dest, out)
+    print(f"NISQA -> {out}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="data/datasets")
     parser.add_argument(
         "--datasets", nargs="+",
-        choices=["bvcc", "tmhint", "audiomos25t3"],
+        choices=["bvcc", "tmhint", "audiomos25t3", "nisqa"],
         default=["bvcc", "tmhint", "audiomos25t3"],
     )
     args = parser.parse_args()
@@ -128,6 +150,8 @@ def main():
         download_tmhint(args.output)
     if "audiomos25t3" in args.datasets:
         download_audiomos25t3(args.output)
+    if "nisqa" in args.datasets:
+        download_nisqa(args.output)
     print("All downloads complete.")
 
 
