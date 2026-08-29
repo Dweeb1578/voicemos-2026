@@ -1,0 +1,16 @@
+{
+  "id": "vrishabnair/somos-p808-part00-of-04",
+  "title": "somos-p808-part00-of-04",
+  "code_file": "somos_score.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "vrishabnair/somos-v2-audio-only-ingestion"
+  ],
+  "model_sources": []
+}

@@ -1,0 +1,171 @@
+"""Offline contract tests for the label-blind SOMOS scoring orchestration."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import time
+import uuid
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from scripts.somos_kaggle_orchestrate import build
+from scripts.somos_merge_shards import collect_shards, validate_provenance
+from scripts.somos_scoring import (
+    CACHE_CHECKPOINT_ROWS,
+    FROZEN_PROTOCOL_SHA256,
+    RUNNERS,
+    SAMPLE_ID_COLUMN,
+    build_audio_manifest,
+    load_audio_manifest,
+    merge_score_shards,
+    score_paths_resumable,
+    select_shard,
+    sha256_file,
+    validate_score_shard,
+    write_score_shard,
+)
+
+
+def _audio_tree(root: Path, count_per_split: int = 40) -> Path:
+    for split, offset in (("TRAINSET", 0), ("VALIDSET", 100), ("TESTSET", 200)):
+        directory = root / split
+        directory.mkdir(parents=True)
+        for index in range(count_per_split):
+            # Filename is the official immutable join key, including .wav.
+            (directory / f"sentence_{index + offset:04d}_{index % 7:03d}.wav").write_bytes(b"RIFF")
+    return root
+
+
+@pytest.fixture
+def work_dir():
+    """Use the project tree, because this Windows pytest temp ACL is restricted."""
+    path = Path(__file__).resolve().parents[1] / f".somos-score-test-{uuid.uuid4().hex}"
+    path.mkdir()
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _cache_scores(entries: pd.DataFrame, cache_path: Path, outputs: tuple[str, ...]) -> None:
+    positions = {path: index for index, path in enumerate(entries.audio_path)}
+
+    def scorer(path: str) -> tuple[float, ...]:
+        return tuple(float(positions[path] + column + 1) for column in range(len(outputs)))
+
+    score_paths_resumable(scorer, entries, cache_path, outputs, time.monotonic() + 20, "test")
+
+
+def test_audio_manifest_keeps_exact_wav_sample_id_and_rejects_targets(work_dir: Path):
+    audio_root = _audio_tree(work_dir / "audio", count_per_split=2)
+    manifest = build_audio_manifest(audio_root)
+
+    assert SAMPLE_ID_COLUMN in manifest.columns
+    assert "utt_id" not in manifest.columns
+    assert manifest[SAMPLE_ID_COLUMN].str.endswith(".wav").all()
+    assert set(manifest.split) == {"train", "valid", "test"}
+    assert manifest.iloc[0].source_group.startswith("sentence_")
+
+    (audio_root / "train_mos_list.txt").write_text("do not read me\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="target MOS list"):
+        build_audio_manifest(audio_root)
+
+
+def test_checkpointed_cache_resumes_and_writes_all_rows(work_dir: Path):
+    assert CACHE_CHECKPOINT_ROWS == 50
+    # Write the audio-only manifest explicitly, mimicking the scorer input.
+    audio_root = _audio_tree(work_dir / "audio2", count_per_split=40)
+    manifest = build_audio_manifest(audio_root)
+    manifest_path = work_dir / "somos_audio_manifest.csv"
+    manifest.to_csv(manifest_path, index=False)
+    entries = load_audio_manifest(manifest_path, audio_root)
+    cache = work_dir / "scores.cache.csv"
+    calls: list[str] = []
+
+    def scorer(path: str) -> tuple[float]:
+        calls.append(path)
+        return (float(len(calls)),)
+
+    result = score_paths_resumable(
+        scorer, entries, cache, ("p808",), time.monotonic() + 20, "test")
+    assert len(calls) == len(entries)
+    assert len(result) == len(entries)
+    assert len(pd.read_csv(cache)) == len(entries)
+
+    # A resumed run must recognize the cache and avoid a second inference pass.
+    resumed = score_paths_resumable(
+        lambda _: pytest.fail("cached clip was scored twice"),
+        entries, cache, ("p808",), time.monotonic() + 20, "test")
+    assert resumed == result
+
+
+def test_shards_merge_to_canonical_runner_schema(work_dir: Path):
+    audio_root = _audio_tree(work_dir / "audio", count_per_split=24)
+    manifest = build_audio_manifest(audio_root)
+    manifest_path = work_dir / "somos_audio_manifest.csv"
+    manifest.to_csv(manifest_path, index=False)
+    loaded = load_audio_manifest(manifest_path, audio_root)
+    outputs = RUNNERS["p808"]["outputs"]
+    shards = []
+    for part in range(4):
+        entries = select_shard(loaded, part, 4)
+        cache = work_dir / f"p808-part{part:02d}-of-04.cache.csv"
+        _cache_scores(entries, cache, outputs)
+        score = work_dir / f"p808-part{part:02d}-of-04.csv"
+        write_score_shard(entries, cache, outputs, score)
+        score.with_suffix(".provenance.json").write_text(json.dumps({
+            "protocol_sha256": FROZEN_PROTOCOL_SHA256,
+            "runner": {"id": "p808"},
+            "target_access": "No target MOS file or column was read during scoring.",
+            "score_shard": {"sha256": sha256_file(score)},
+        }), encoding="utf-8")
+        shards.append(score)
+
+    discovered = collect_shards(work_dir, "p808")
+    assert discovered == shards
+    for score in discovered:
+        validate_provenance(score, "p808")
+
+    merged = work_dir / "merged" / "p808.csv"
+    result = merge_score_shards(shards, "p808", loaded, merged)
+    frame = pd.read_csv(merged, dtype={SAMPLE_ID_COLUMN: str, "system_id": str})
+    assert result["rows"] == len(loaded)
+    assert list(frame.columns) == [SAMPLE_ID_COLUMN, "source_group", "system_id", "split", "p808"]
+    assert set(frame[SAMPLE_ID_COLUMN]) == set(loaded[SAMPLE_ID_COLUMN])
+
+    bad = frame.assign(mos=3.0)
+    with pytest.raises(ValueError, match="forbidden target"):
+        validate_score_shard(bad, loaded, outputs)
+
+
+def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):
+    output = work_dir / "somos-kernels"
+    result = build(
+        username="unit-test", audio_kernel="unit-test/somos-v2-audio-only-ingestion",
+        resume_kernel="unit-test/prior-score-output",
+        shard_count=2, smoke_items=3, output_root=output,
+    )
+    assert result["kernels"] == 20
+
+    dns_meta = json.loads((output / "dnsmos" / "part-00" / "kernel-metadata.json").read_text())
+    squim_meta = json.loads((output / "squim" / "part-00" / "kernel-metadata.json").read_text())
+    lock = json.loads((output / "universa" / "part-01" / "orchestration.lock.json").read_text())
+    assert dns_meta["enable_gpu"] is False
+    assert "machine_shape" not in dns_meta
+    assert squim_meta["enable_gpu"] is True
+    assert squim_meta["machine_shape"] == "NvidiaTeslaT4"
+    assert lock["runner"]["revision"] == RUNNERS["universa"]["revision"]
+    assert lock["audio_input_contract"]["target_access"].startswith("No MOS-list")
+    assert dns_meta["kernel_sources"] == [
+        "unit-test/somos-v2-audio-only-ingestion", "unit-test/prior-score-output",
+    ]
+    assert lock["resume"]["kernel_source"] == "unit-test/prior-score-output"
+    assert lock["smoke_items"] == 3
+
+    notebook = json.loads((output / "dnsmos" / "part-00" / "somos_score.ipynb").read_text())
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            compile(cell["source"], "generated-notebook", "exec")

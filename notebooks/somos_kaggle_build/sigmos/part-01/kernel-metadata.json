@@ -1,0 +1,17 @@
+{
+  "id": "vrishabnair/somos-sigmos-part01-of-04",
+  "title": "somos-sigmos-part01-of-04",
+  "code_file": "somos_score.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "vrishabnair/somos-v2-audio-only-ingestion"
+  ],
+  "model_sources": [],
+  "machine_shape": "NvidiaTeslaT4"
+}

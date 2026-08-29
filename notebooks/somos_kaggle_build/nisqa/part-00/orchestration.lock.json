@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "protocol_sha256": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
+  "runner": {
+    "id": "nisqa",
+    "outputs": [
+      "nisqa"
+    ],
+    "source": "gabrielmittag/NISQA",
+    "revision": "fe84f0f252abec382b24367d5b22498a7ce34dbb",
+    "weight_hashes": {},
+    "preprocessing": "upstream NISQA predict_csv preprocessing",
+    "gpu": true
+  },
+  "shard": {
+    "index": 0,
+    "count": 4
+  },
+  "max_runtime_minutes": 660,
+  "smoke_items": 0,
+  "audio_input_contract": {
+    "kernel_source": "vrishabnair/somos-v2-audio-only-ingestion",
+    "manifest": "somos_audio_manifest.csv",
+    "audio_directory": "audio/",
+    "target_access": "No MOS-list file or target column may be mounted or read."
+  },
+  "frozen_dns_model_artifact": null,
+  "declared_runner_arguments": [],
+  "embedded_source_sha256": {
+    "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scripts/somos_scoring.py": "ace3aee1d5091d132938addfcee9fc47807d80c3ac4455507f7d8bb7dec8ba9f",
+    "scripts/somos_runner.py": "660d522fc0b672e83efde468bd139be79b75701f272f893db823868c05134591",
+    "scripts/clip_cache.py": "b35fe9fc45d75994c294e81043d0bf5688ae299312592c5c71e4d154051e39d8",
+    "scripts/submission.py": "9922f09aef8f67e3ffa51b6abdcd21afb503f824d6e79c9c71eb701834fb932d",
+    "scripts/zero_shot_dnsmos.py": "7cfa375959c584eff3bc4d5e098e1f5b6200d5c2b8fdf1a2914e3c60a02667d2",
+    "scripts/zero_shot_p808.py": "172673d730fc04e4a93491739bf3ab2778f9ee0e7b2d519f5b04b904c347ab92",
+    "scripts/zero_shot_squim.py": "36f39f08c91c8e3b35ba4087a59bb2e8345f5aabd6b63dc96a30d585e557dfb9",
+    "scripts/zero_shot_audiobox.py": "9724aa90c7c606f63fed101590d2dd2f369626a5c64f143939ed1fa56cce3eaa",
+    "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
+    "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
+  },
+  "notebook_sha256": "04da16eb16dd4449732a01fcec2984ebda4d7ef16b91d58b71e25800441a2df5",
+  "resume": {
+    "cache_filename": "nisqa-part00-of-04.cache.csv",
+    "kernel_source": null,
+    "input_rule": "Attach at most one prediction-only prior-output kernel source containing this cache."
+  }
+}

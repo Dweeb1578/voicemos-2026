@@ -1,0 +1,14 @@
+{
+  "id": "vrishabnair/somos-v2-audio-only-ingestion",
+  "title": "SOMOS v2 audio-only prospective ingestion",
+  "code_file": "kaggle_somos_v2_pipeline.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
