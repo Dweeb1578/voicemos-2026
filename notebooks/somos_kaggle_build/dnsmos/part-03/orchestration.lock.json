@@ -55,7 +55,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "37b3a64d53377920c0bf02d702daa9af3dc84f26e20b348953c9385ea0a9b554",
+  "notebook_sha256": "cdd837e40b8a99918cc171728689601c436485ab43f6ab56fb5bc4306e45d424",
   "resume": {
     "cache_filename": "dnsmos-part03-of-04.cache.csv",
     "kernel_source": null,

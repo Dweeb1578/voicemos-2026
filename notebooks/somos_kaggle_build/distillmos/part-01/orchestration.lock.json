@@ -39,7 +39,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "e29aee015a3156d3a580d9ba91e743ca6f215596684f9694729a21574c86d522",
+  "notebook_sha256": "9ac22482be3242869eff991aff5696771a7fb5bf04c9149145a0268f60b494f1",
   "resume": {
     "cache_filename": "distillmos-part01-of-04.cache.csv",
     "kernel_source": null,

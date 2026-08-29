@@ -39,7 +39,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "cfa609de5f2269c53f8b46822464934864e0d3c21db6604df4534e9c24d5facc",
+  "notebook_sha256": "f147be624b3e0bcf31e3a564f40b19f652d4c47528da68fc0ce53a3704f46a29",
   "resume": {
     "cache_filename": "nisqa-part02-of-04.cache.csv",
     "kernel_source": null,

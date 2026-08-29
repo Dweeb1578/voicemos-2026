@@ -44,7 +44,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "5c795d3d311ffefe8cc9ff43c1302e8403fb2137db4c297ab8a53bb6de0e4a7e",
+  "notebook_sha256": "0f6c6ac30a431a4c5cf622039da65a5c99fd375c79b71d7f50b715bb235ba819",
   "resume": {
     "cache_filename": "audiobox-part03-of-04.cache.csv",
     "kernel_source": null,

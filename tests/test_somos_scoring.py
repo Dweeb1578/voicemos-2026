@@ -141,6 +141,48 @@ def test_shards_merge_to_canonical_runner_schema(work_dir: Path):
         validate_score_shard(bad, loaded, outputs)
 
 
+def test_generated_run_cell_passes_only_string_arguments(work_dir: Path, monkeypatch):
+    # compile() accepts an int in the argv list, but str.join and subprocess
+    # both reject one at run time, so the cell has to be executed to be checked.
+    import subprocess as real_subprocess
+
+    output = work_dir / "somos-kernels"
+    build(
+        username="unit-test", audio_kernel="unit-test/audio", resume_kernel=None,
+        shard_count=4, smoke_items=100, output_root=output,
+    )
+    notebook = json.loads((output / "scoreq" / "part-02" / "somos_score.ipynb").read_text())
+    run_cell = next(
+        cell["source"] for cell in notebook["cells"]
+        if cell["cell_type"] == "code" and "scripts.somos_runner" in cell["source"]
+    )
+
+    captured = {}
+
+    def fake_run(command, *args, **kwargs):
+        captured["command"] = command
+
+    monkeypatch.setattr(real_subprocess, "run", fake_run)
+    namespace = {
+        "AUDIO_ROOT": Path("/kaggle/input/audio"),
+        "MANIFEST": Path("/kaggle/input/somos_audio_manifest.csv"),
+        "OUT": Path("/kaggle/working/out"),
+        "EXTRA": ["--vendor-root", "/kaggle/working/vendor"],
+        # A Path here proves the cell coerces artifacts too, not just numbers.
+        "ARTIFACTS": [Path("/kaggle/working/somos_artifacts")],
+    }
+    exec(run_cell, namespace)
+
+    command = captured.get("command")
+    assert command, "the generated run cell never invoked scripts.somos_runner"
+    assert all(isinstance(value, str) for value in command), [
+        value for value in command if not isinstance(value, str)
+    ]
+    assert command[command.index("--shard-index") + 1] == "2"
+    assert command[command.index("--shard-count") + 1] == "4"
+    assert command[command.index("--smoke-items") + 1] == "100"
+
+
 def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):
     output = work_dir / "somos-kernels"
     result = build(

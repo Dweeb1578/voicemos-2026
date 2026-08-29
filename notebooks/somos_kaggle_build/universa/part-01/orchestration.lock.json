@@ -48,7 +48,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "a3c78f388192c6259d16c6788e2803fa579b4e88d0658c8fb6250da62a08ebc0",
+  "notebook_sha256": "92292c547bed7d10b181a47d458bac18ac58a0ad992c2ba9e11e35270c59fe9c",
   "resume": {
     "cache_filename": "universa-part01-of-04.cache.csv",
     "kernel_source": null,

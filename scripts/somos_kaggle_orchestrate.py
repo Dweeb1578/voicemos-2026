@@ -254,6 +254,9 @@ command = [
 ] + EXTRA + ['--artifact-path'] + ARTIFACTS
 if {smoke_items!r}:
     command += ['--smoke-items', {smoke_items!r}]
+# subprocess and str.join both reject non-string arguments, and the shard and
+# runtime values are emitted as integers.
+command = [str(value) for value in command]
 print('>>', ' '.join(command), flush=True)
 subprocess.run(command, check=True)
 '''
