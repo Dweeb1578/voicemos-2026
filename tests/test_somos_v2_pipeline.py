@@ -153,8 +153,27 @@ def test_download_records_runtime_hashes_without_network(work_dir):
 def test_resolve_clean_prefix_requires_all_three_lists():
     names = [f"{PREFIX}/{split}_mos_list.txt" for split in ("train", "valid", "test")]
     assert resolve_clean_prefix(names) == PREFIX
-    with pytest.raises(ValueError, match="expected one clean split prefix"):
+    with pytest.raises(ValueError, match="expected exactly one"):
         resolve_clean_prefix(names[:-1])
+
+
+def test_resolve_clean_prefix_ignores_the_full_partition():
+    # The real v2 archive ships split1/clean and split1/full side by side, both
+    # carrying train/valid/test MOS lists.
+    names = []
+    for partition in ("clean", "full"):
+        base = f"training_files/split1/{partition}"
+        names += [f"{base}/{split}_mos_list.txt" for split in ("train", "valid", "test")]
+        names += [f"{base}/TRAINSET", f"{base}/VALIDSET", f"{base}/TESTSET"]
+    names += ["audios.zip", "readme.txt", "raw_scores_with_metadata/raw_scores.tsv"]
+    assert resolve_clean_prefix(names) == "training_files/split1/clean"
+
+
+def test_resolve_clean_prefix_rejects_an_archive_without_a_clean_partition():
+    base = "training_files/split1/full"
+    names = [f"{base}/{split}_mos_list.txt" for split in ("train", "valid", "test")]
+    with pytest.raises(ValueError, match="training_files/split1/clean"):
+        resolve_clean_prefix(names)
 
 
 def test_inventory_records_archive_hashes_and_clean_members(work_dir):

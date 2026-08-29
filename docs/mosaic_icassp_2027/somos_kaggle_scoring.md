@@ -55,11 +55,11 @@ the local kernel directories. This command does not need Kaggle credentials and
 does not execute inference:
 
 ```powershell
-py -3.14 -m scripts.somos_kaggle_orchestrate --username <account> --audio-kernel <account>/somos-v2-audio-only-ingestion --build
+py -3.14 -m scripts.somos_kaggle_orchestrate --username <account> --audio-kernel <account>/somos-v2-audio-only-prospective-ingestion --build
 ```
 
-At the time of writing, Kaggle CLI authentication is absent, so do not push or
-launch these directories yet. The `--audio-kernel` source must be Luna's private
+Kaggle CLI OAuth is active for this account, so these directories can be
+pushed once the smoke projections below are recorded. The `--audio-kernel` source must be Luna's private
 audio-only ingestion-kernel output, not a dataset containing release labels.
 Once authentication and a GPU budget are available, upload the generated
 directories unchanged, preserving their `kernel-metadata.json` and
@@ -72,7 +72,7 @@ bounded below 12 hours. First build a non-final, fixed-size rate smoke with one
 shard per runner:
 
 ```powershell
-py -3.14 -m scripts.somos_kaggle_orchestrate --username <account> --audio-kernel <account>/somos-v2-audio-only-ingestion --shard-count 1 --smoke-items 25 --build --out notebooks/somos-kaggle-smoke
+py -3.14 -m scripts.somos_kaggle_orchestrate --username <account> --audio-kernel <account>/somos-v2-audio-only-prospective-ingestion --shard-count 1 --smoke-items 25 --build --out notebooks/somos-kaggle-smoke
 ```
 
 The smoke mode hashes initialized artifacts and writes only a resumable cache

@@ -1,5 +1,5 @@
 {
-  "id": "vrishabnair/somos-v2-audio-only-ingestion",
+  "id": "vrishabnair/somos-v2-audio-only-prospective-ingestion",
   "title": "SOMOS v2 audio-only prospective ingestion",
   "code_file": "kaggle_somos_v2_pipeline.ipynb",
   "language": "python",

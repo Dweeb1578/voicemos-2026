@@ -232,7 +232,7 @@ def archive_inventory(
 
 
 def resolve_clean_prefix(names: list[str]) -> str:
-    """Find the unique archive prefix containing the three frozen MOS lists."""
+    """Find the split1/clean prefix holding the three frozen MOS lists."""
 
     normalized_names = [_safe_member_name(name) for name in names]
     name_set = set(normalized_names)
@@ -244,17 +244,16 @@ def resolve_clean_prefix(names: list[str]) -> str:
         required = {prefix + f"/{split}_mos_list.txt" for split in SPLITS}
         if required.issubset(name_set):
             candidates.append(prefix)
-    if len(candidates) != 1:
+    # The v2 release ships both split1/clean and split1/full with identically
+    # named MOS lists.  The frozen protocol admits only clean, so select it by
+    # name instead of requiring the archive to hold a single candidate.
+    clean = [prefix for prefix in candidates if prefix.endswith(EXPECTED_CLEAN_SUFFIX)]
+    if len(clean) != 1:
         raise ValueError(
-            "expected one clean split prefix with train/valid/test MOS lists, "
-            f"found {candidates}"
+            f"expected exactly one {EXPECTED_CLEAN_SUFFIX!r} prefix with "
+            f"train/valid/test MOS lists, found {clean} among {candidates}"
         )
-    prefix = candidates[0]
-    if not prefix.endswith(EXPECTED_CLEAN_SUFFIX):
-        raise ValueError(
-            f"clean split prefix {prefix!r} does not end with {EXPECTED_CLEAN_SUFFIX!r}"
-        )
-    return prefix
+    return clean[0]
 
 
 def _safe_output_path(root: Path, relative_name: str) -> Path:

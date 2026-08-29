@@ -1,0 +1,17 @@
+{
+  "id": "vrishabnair/somos-distillmos-part00-of-01",
+  "title": "somos-distillmos-part00-of-01",
+  "code_file": "somos_score.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "vrishabnair/somos-v2-audio-only-prospective-ingestion"
+  ],
+  "model_sources": [],
+  "machine_shape": "NvidiaTeslaT4"
+}

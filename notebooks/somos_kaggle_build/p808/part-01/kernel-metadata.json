@@ -10,7 +10,7 @@
   "dataset_sources": [],
   "competition_sources": [],
   "kernel_sources": [
-    "vrishabnair/somos-v2-audio-only-ingestion"
+    "vrishabnair/somos-v2-audio-only-prospective-ingestion"
   ],
   "model_sources": []
 }

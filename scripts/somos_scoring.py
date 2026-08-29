@@ -442,7 +442,8 @@ def write_shard_provenance(output_path: Path, *, runner_id: str,
                            shard_count: int, shard_part: int, score_path: Path,
                            cache_path: Path, initialization_path: Path,
                            environment: dict, model_artifacts: list[dict],
-                           runner_source_sha256: dict[str, str]) -> dict:
+                           runner_source_sha256: dict[str, str],
+                           timing: dict | None = None) -> dict:
     """Write an auditable, prediction-only provenance record for one shard."""
     if runner_id not in RUNNERS:
         raise ValueError(f"unknown frozen SOMOS runner: {runner_id}")
@@ -473,6 +474,7 @@ def write_shard_provenance(output_path: Path, *, runner_id: str,
         "environment": environment,
         "model_artifacts": model_artifacts,
         "runner_source_sha256": runner_source_sha256,
+        "timing": timing,
         "target_access": "No target MOS file or column was read during scoring.",
     }
     output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

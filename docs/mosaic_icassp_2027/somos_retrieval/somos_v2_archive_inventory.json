@@ -1,0 +1,256 @@
+{
+  "schema_version": "somos-v2-archive-inventory-1",
+  "inventoried_at_utc": "2026-08-29T19:14:07.262232+00:00",
+  "zenodo_record_url": "https://zenodo.org/records/7378801",
+  "archive_url": "https://zenodo.org/records/7378801/files/somos.zip?download=1",
+  "doi": "10.5281/zenodo.7378801",
+  "archive_md5": "bdfde4cae256549dfab05d713136e4af",
+  "expected_md5": "bdfde4cae256549dfab05d713136e4af",
+  "local_sha256": "bb43466d6d90cb1eea57bdbf4e7c776382e3f85c57256e61db091266df8ee994",
+  "archive_bytes": 3971669902,
+  "member_count": 34,
+  "uncompressed_bytes": 4086080520,
+  "clean_suffix": "training_files/split1/clean",
+  "clean_member_count": 10,
+  "members": [
+    {
+      "name": "audios.zip",
+      "is_dir": false,
+      "bytes": 3959560646,
+      "compressed_bytes": 3959560646,
+      "crc32": "43c2b360"
+    },
+    {
+      "name": "raw_scores_with_metadata",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "raw_scores_with_metadata/raw_scores.tsv",
+      "is_dir": false,
+      "bytes": 33037487,
+      "compressed_bytes": 2871297,
+      "crc32": "964c9e1a"
+    },
+    {
+      "name": "raw_scores_with_metadata/raw_scores_removed_excess_gt.tsv",
+      "is_dir": false,
+      "bytes": 31757207,
+      "compressed_bytes": 2772674,
+      "crc32": "eebf3a7f"
+    },
+    {
+      "name": "raw_scores_with_metadata/split1",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "raw_scores_with_metadata/split1/raw_scores_removed_excess_gt_testset.tsv",
+      "is_dir": false,
+      "bytes": 4762265,
+      "compressed_bytes": 482290,
+      "crc32": "030515ad"
+    },
+    {
+      "name": "raw_scores_with_metadata/split1/raw_scores_removed_excess_gt_trainset.tsv",
+      "is_dir": false,
+      "bytes": 22261701,
+      "compressed_bytes": 1970749,
+      "crc32": "6797e88a"
+    },
+    {
+      "name": "raw_scores_with_metadata/split1/raw_scores_removed_excess_gt_validset.tsv",
+      "is_dir": false,
+      "bytes": 4733567,
+      "compressed_bytes": 479649,
+      "crc32": "aef2c91e"
+    },
+    {
+      "name": "readme.txt",
+      "is_dir": false,
+      "bytes": 6143,
+      "compressed_bytes": 2194,
+      "crc32": "b44db058"
+    },
+    {
+      "name": "training_files",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "training_files/split1",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "training_files/split1/clean",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "training_files/split1/clean/TESTSET",
+      "is_dir": false,
+      "bytes": 1590686,
+      "compressed_bytes": 212183,
+      "crc32": "c2e2f977"
+    },
+    {
+      "name": "training_files/split1/clean/TRAINSET",
+      "is_dir": false,
+      "bytes": 7426004,
+      "compressed_bytes": 874992,
+      "crc32": "f7a8a89b"
+    },
+    {
+      "name": "training_files/split1/clean/VALIDSET",
+      "is_dir": false,
+      "bytes": 1582065,
+      "compressed_bytes": 209710,
+      "crc32": "b9b2dbd3"
+    },
+    {
+      "name": "training_files/split1/clean/test_mos_list.txt",
+      "is_dir": false,
+      "bytes": 111586,
+      "compressed_bytes": 17319,
+      "crc32": "74c4bd5b"
+    },
+    {
+      "name": "training_files/split1/clean/test_system.csv",
+      "is_dir": false,
+      "bytes": 4525,
+      "compressed_bytes": 1962,
+      "crc32": "2560b307"
+    },
+    {
+      "name": "training_files/split1/clean/train_mos_list.txt",
+      "is_dir": false,
+      "bytes": 523208,
+      "compressed_bytes": 70200,
+      "crc32": "3f7cce96"
+    },
+    {
+      "name": "training_files/split1/clean/train_system.csv",
+      "is_dir": false,
+      "bytes": 4091,
+      "compressed_bytes": 1927,
+      "crc32": "862974fc"
+    },
+    {
+      "name": "training_files/split1/clean/valid_mos_list.txt",
+      "is_dir": false,
+      "bytes": 111500,
+      "compressed_bytes": 17355,
+      "crc32": "b27c8dff"
+    },
+    {
+      "name": "training_files/split1/clean/valid_system.csv",
+      "is_dir": false,
+      "bytes": 4312,
+      "compressed_bytes": 1888,
+      "crc32": "e1ff131a"
+    },
+    {
+      "name": "training_files/split1/full",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "training_files/split1/full/TESTSET",
+      "is_dir": false,
+      "bytes": 2657903,
+      "compressed_bytes": 331280,
+      "crc32": "8ef3ce11"
+    },
+    {
+      "name": "training_files/split1/full/TRAINSET",
+      "is_dir": false,
+      "bytes": 12423083,
+      "compressed_bytes": 1330079,
+      "crc32": "3ffb58ee"
+    },
+    {
+      "name": "training_files/split1/full/VALIDSET",
+      "is_dir": false,
+      "bytes": 2641615,
+      "compressed_bytes": 329384,
+      "crc32": "25ebd763"
+    },
+    {
+      "name": "training_files/split1/full/test_mos_list.txt",
+      "is_dir": false,
+      "bytes": 124033,
+      "compressed_bytes": 17621,
+      "crc32": "9602c32e"
+    },
+    {
+      "name": "training_files/split1/full/test_system.csv",
+      "is_dir": false,
+      "bytes": 4547,
+      "compressed_bytes": 2139,
+      "crc32": "c714cde1"
+    },
+    {
+      "name": "training_files/split1/full/train_mos_list.txt",
+      "is_dir": false,
+      "bytes": 584660,
+      "compressed_bytes": 70362,
+      "crc32": "ec2bbdcf"
+    },
+    {
+      "name": "training_files/split1/full/train_system.csv",
+      "is_dir": false,
+      "bytes": 4090,
+      "compressed_bytes": 1952,
+      "crc32": "aae08351"
+    },
+    {
+      "name": "training_files/split1/full/valid_mos_list.txt",
+      "is_dir": false,
+      "bytes": 124693,
+      "compressed_bytes": 17582,
+      "crc32": "0e8c8d93"
+    },
+    {
+      "name": "training_files/split1/full/valid_system.csv",
+      "is_dir": false,
+      "bytes": 4306,
+      "compressed_bytes": 2018,
+      "crc32": "8ff0e1a3"
+    },
+    {
+      "name": "transcript",
+      "is_dir": true,
+      "bytes": 0,
+      "compressed_bytes": 0,
+      "crc32": "00000000"
+    },
+    {
+      "name": "transcript/additional_sentences.txt",
+      "is_dir": false,
+      "bytes": 29045,
+      "compressed_bytes": 12121,
+      "crc32": "e49eb27a"
+    },
+    {
+      "name": "transcript/gather_transcripts.py",
+      "is_dir": false,
+      "bytes": 5552,
+      "compressed_bytes": 1895,
+      "crc32": "2201dcf0"
+    }
+  ],
+  "md5_matches_expected": true
+}

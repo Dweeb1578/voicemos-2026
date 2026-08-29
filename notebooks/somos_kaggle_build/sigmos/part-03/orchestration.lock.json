@@ -25,7 +25,7 @@
   "max_runtime_minutes": 660,
   "smoke_items": 0,
   "audio_input_contract": {
-    "kernel_source": "vrishabnair/somos-v2-audio-only-ingestion",
+    "kernel_source": "vrishabnair/somos-v2-audio-only-prospective-ingestion",
     "manifest": "somos_audio_manifest.csv",
     "audio_directory": "audio/",
     "target_access": "No MOS-list file or target column may be mounted or read."
@@ -34,8 +34,8 @@
   "declared_runner_arguments": [],
   "embedded_source_sha256": {
     "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "scripts/somos_scoring.py": "ace3aee1d5091d132938addfcee9fc47807d80c3ac4455507f7d8bb7dec8ba9f",
-    "scripts/somos_runner.py": "660d522fc0b672e83efde468bd139be79b75701f272f893db823868c05134591",
+    "scripts/somos_scoring.py": "e72371f1324c3a2268787d22d55383da6817c1030fae9a83b498a3da9356f301",
+    "scripts/somos_runner.py": "de9791d323fe1f51f84fa3213c8a34a0ea653d60a1c1412f946d87099265e947",
     "scripts/clip_cache.py": "b35fe9fc45d75994c294e81043d0bf5688ae299312592c5c71e4d154051e39d8",
     "scripts/submission.py": "9922f09aef8f67e3ffa51b6abdcd21afb503f824d6e79c9c71eb701834fb932d",
     "scripts/zero_shot_dnsmos.py": "7cfa375959c584eff3bc4d5e098e1f5b6200d5c2b8fdf1a2914e3c60a02667d2",
@@ -45,7 +45,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "e7567bb983db9fe134aad1e3adbdb89969ff46a81a19d7f7009056256c3e0f99",
+  "notebook_sha256": "5697e20a072d7a0ef7a855a7be314a1605636f9ab846ecef0f66402a68ef64b6",
   "resume": {
     "cache_filename": "sigmos-part03-of-04.cache.csv",
     "kernel_source": null,

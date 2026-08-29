@@ -123,7 +123,7 @@ Keep Internet enabled and do not modify the dataset URL, archive hash, split, ex
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--username", default="vrishabnair")
-    parser.add_argument("--slug", default="somos-v2-audio-only-ingestion")
+    parser.add_argument("--slug", default="somos-v2-audio-only-prospective-ingestion")
     args = parser.parse_args(argv)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(build_notebook(), indent=2) + "\n", encoding="utf-8")

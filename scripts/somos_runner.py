@@ -372,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
+    process_started = time.monotonic()
     assert_frozen_protocol()
     audio = load_audio_manifest(args.audio_manifest, args.audio_root)
     entries = select_shard(audio, args.shard_index, args.shard_count)
@@ -399,12 +400,15 @@ def main(argv: list[str] | None = None) -> int:
 
     deadline = time.monotonic() + args.max_runtime_minutes * 60
     initialization: dict = {}
+    timing: dict = {}
 
     def before_score() -> None:
         """Hash initialized model assets before writing the first score row."""
         nonlocal initialization
         if initialization:
             return
+        timing["model_init_seconds"] = round(time.monotonic() - process_started, 3)
+        timing["scoring_started_monotonic"] = time.monotonic()
         artifacts = tree_inventory(args.artifact_path)
         environment = environment_snapshot(args.out_dir / f"{tag}.environment.json")
         initialization = {
@@ -419,11 +423,26 @@ def main(argv: list[str] | None = None) -> int:
         initialization_path.write_text(
             json.dumps(initialization, indent=2) + "\n", encoding="utf-8")
 
+    rows_before = len(load_cache(cache_path, output_columns))
     _run_scoring(args, scoring_entries, cache_path, deadline, before_score)
     if not initialization:
         # A fully cached shard still needs a fresh initialization record before
         # it can be accepted.  No new score is written in this branch.
         before_score()
+    scored = len(load_cache(cache_path, output_columns)) - rows_before
+    elapsed = round(time.monotonic() - timing.pop(
+        "scoring_started_monotonic", process_started), 3)
+    rate = round(scored / elapsed, 4) if scored and elapsed > 0 else None
+    timing.update({
+        "rows_scored": scored,
+        "scoring_seconds": elapsed,
+        "rows_per_second": rate,
+        "shard_rows": int(len(entries)),
+        # The frozen bank has to fit a fixed Kaggle GPU quota, so every run
+        # reports what the whole shard would cost at the observed rate.
+        "projected_shard_hours": round(len(entries) / rate / 3600, 3) if rate else None,
+    })
+    print(json.dumps({"timing": timing}, indent=2), flush=True)
     if args.smoke_items:
         smoke_path = args.out_dir / f"{tag}.smoke.provenance.json"
         smoke = {
@@ -436,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
             "cache": {"path": str(cache_path), "sha256": sha256_file(cache_path)},
             "initialization": initialization,
             "runner_source_sha256": _runner_source_hashes(),
+            "timing": timing,
             "target_access": "No target MOS file or column was read during scoring.",
         }
         smoke_path.write_text(json.dumps(smoke, indent=2) + "\n", encoding="utf-8")
@@ -450,7 +470,7 @@ def main(argv: list[str] | None = None) -> int:
         cache_path=cache_path, initialization_path=initialization_path,
         environment=initialization["environment"],
         model_artifacts=initialization["model_artifacts"],
-        runner_source_sha256=_runner_source_hashes())
+        runner_source_sha256=_runner_source_hashes(), timing=timing)
     print(json.dumps({"status": "complete", "tag": tag, **validation,
                       "provenance": str(provenance_path)}, indent=2))
     return 0
