@@ -49,23 +49,23 @@ def _make_archive(
     nested_audio: bool = False,
 ) -> Path:
     rows = {
-        "train": [("booksent_0001_000.wav", "3.0")],
-        "valid": [("booksent_0001_001.wav", "4.0")],
-        "test": [("booksent_0001_000.wav" if bad_id else "booksent_0002_002.wav", "2.0")],
+        "train": [("booksent_0001_000", "3.0")],
+        "valid": [("booksent_0001_001", "4.0")],
+        "test": [("booksent_0001_000" if bad_id else "booksent_0002_002", "2.0")],
     }
     nested = io.BytesIO()
     nested_writer = zipfile.ZipFile(nested, "w", compression=zipfile.ZIP_DEFLATED)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for split, items in rows.items():
-            archive.writestr(f"{PREFIX}/{split}_mos_list.txt", "utt_id mos\n" + "\n".join(
-                f"{item_id} {mos}" for item_id, mos in items
+            archive.writestr(f"{PREFIX}/{split}_mos_list.txt", "utteranceId,mean\n" + "\n".join(
+                f"{item_id},{mos}" for item_id, mos in items
             ) + "\n")
             for item_id, _ in items:
                 if nested_audio:
-                    nested_writer.writestr(f"audios/{item_id}", b"RIFFsynthetic")
+                    nested_writer.writestr(f"audios/{item_id}.wav", b"RIFFsynthetic")
                     continue
                 audio_dir = "audios" if flat_audio else f"{split.upper()}SET"
-                archive.writestr(f"{PREFIX}/{audio_dir}/{item_id}", b"RIFFsynthetic")
+                archive.writestr(f"{PREFIX}/{audio_dir}/{item_id}.wav", b"RIFFsynthetic")
         if nested_audio:
             nested_writer.close()
             archive.writestr("somos/audios.zip", nested.getvalue())
@@ -155,6 +155,36 @@ def test_resolve_clean_prefix_requires_all_three_lists():
     assert resolve_clean_prefix(names) == PREFIX
     with pytest.raises(ValueError, match="expected exactly one"):
         resolve_clean_prefix(names[:-1])
+
+
+def test_clean_lists_accept_the_released_header_and_bare_ids(work_dir):
+    from scripts.somos_v2_pipeline import _read_manifest_inputs
+
+    clean = work_dir / "clean"
+    clean.mkdir()
+    (clean / "train_mos_list.txt").write_text(
+        "utteranceId,mean\nbooksent_0001_000,3.5\n", encoding="utf-8")
+    (clean / "valid_mos_list.txt").write_text(
+        "utteranceId,mean\nbooksent_0001_001.wav,4.5\n", encoding="utf-8")
+    (clean / "test_mos_list.txt").write_text(
+        "utteranceId,mean\nbooksent_0002_002,2.5\n", encoding="utf-8")
+    entries = _read_manifest_inputs(clean)
+    assert [sample_id for _split, sample_id, _mos in entries] == [
+        "booksent_0001_000.wav", "booksent_0001_001.wav", "booksent_0002_002.wav",
+    ]
+
+
+def test_a_non_numeric_score_after_the_header_still_fails(work_dir):
+    from scripts.somos_v2_pipeline import _read_manifest_inputs
+
+    clean = work_dir / "clean"
+    clean.mkdir()
+    for split in ("train", "valid", "test"):
+        (clean / f"{split}_mos_list.txt").write_text(
+            "utteranceId,mean\nbooksent_0001_000,3.5\nbooksent_0001_001,broken\n",
+            encoding="utf-8")
+    with pytest.raises(ValueError, match="non-numeric MOS"):
+        _read_manifest_inputs(clean)
 
 
 def test_resolve_clean_prefix_ignores_the_full_partition():

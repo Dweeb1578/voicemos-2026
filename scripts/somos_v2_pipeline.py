@@ -486,7 +486,8 @@ def extract_clean(
     return record
 
 
-def _parse_mos_line(line: str, source: Path, line_number: int) -> tuple[str, float] | None:
+def _parse_mos_line(line: str, source: Path, line_number: int,
+                    allow_header: bool = False) -> tuple[str, float] | None:
     text = line.strip()
     if not text or text.startswith("#"):
         return None
@@ -502,6 +503,11 @@ def _parse_mos_line(line: str, source: Path, line_number: int) -> tuple[str, flo
     try:
         mos = float(fields[1])
     except ValueError as exc:
+        # The released clean lists open with a "utteranceId,mean" header row.
+        # Only the first content line of a list may be non-numeric; anywhere
+        # else a non-numeric score is a real schema failure.
+        if allow_header:
+            return None
         raise ValueError(f"{source}:{line_number}: non-numeric MOS {fields[1]!r}") from exc
     if not math.isfinite(mos) or not 1.0 <= mos <= 5.0:
         raise ValueError(f"{source}:{line_number}: MOS outside [1, 5]: {mos!r}")
@@ -520,13 +526,26 @@ def _read_manifest_inputs(clean_dir: Path) -> list[tuple[str, str, float]]:
             if len(matches) != 1:
                 raise FileNotFoundError(f"expected one {split}_mos_list.txt under {clean_dir}")
             list_path = matches[0]
+        header_allowed = True
+        first_sample_id = None
+        rows_in_split = 0
         for line_number, line in enumerate(
             list_path.read_text(encoding="utf-8", errors="strict").splitlines(), 1
         ):
-            parsed = _parse_mos_line(line, list_path, line_number)
+            text = line.strip()
+            if not text or text.startswith("#"):
+                continue
+            parsed = _parse_mos_line(line, list_path, line_number,
+                                     allow_header=header_allowed)
+            header_allowed = False
             if parsed is None:
                 continue
             sample_id, mos = parsed
+            # The scorer joins on the exact WAV filename, and the archive names
+            # audio members with the extension, so canonicalize the list ID to
+            # match rather than depending on how the release wrote it.
+            if not sample_id.lower().endswith(".wav"):
+                sample_id = f"{sample_id}.wav"
             if sample_id in seen:
                 raise ValueError(f"duplicate sample_id across split lists: {sample_id!r}")
             seen.add(sample_id)
@@ -535,6 +554,12 @@ def _read_manifest_inputs(clean_dir: Path) -> list[tuple[str, str, float]]:
                     f"{list_path}:{line_number}: ID does not match {ID_RE.pattern!r}: {sample_id!r}"
                 )
             entries.append((split, sample_id, mos))
+            rows_in_split += 1
+            if first_sample_id is None:
+                first_sample_id = sample_id
+        # Structure only. Sample IDs are public filenames; no score is printed.
+        print(f"clean list {split}: rows={rows_in_split} first_sample_id={first_sample_id!r}",
+              flush=True)
     if not entries:
         raise ValueError("SOMOS clean manifest is empty")
     return entries
