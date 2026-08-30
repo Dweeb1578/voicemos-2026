@@ -187,6 +187,34 @@ def test_a_non_numeric_score_after_the_header_still_fails(work_dir):
         _read_manifest_inputs(clean)
 
 
+def test_labels_only_extraction_takes_no_audio(work_dir):
+    # The label-retrieval job runs after scoring and is the only step allowed
+    # to materialize MOS values.  It must not extract a single WAV.
+    from scripts.somos_v2_pipeline import LABEL_MANIFEST_COLUMNS, extract_clean
+
+    archive = _make_archive(work_dir / "somos.zip", nested_audio=True)
+    clean = work_dir / "labels"
+    inventory = work_dir / "extract.json"
+
+    record = extract_clean(archive, clean, inventory, labels_only=True)
+
+    assert record["labels_only"] is True
+    assert record["label_file_count"] == 3
+    assert record["referenced_sample_count"] == 3
+    extracted = sorted(path.name for path in clean.rglob("*") if path.is_file())
+    assert extracted == ["test_mos_list.txt", "train_mos_list.txt", "valid_mos_list.txt"]
+    assert not list(clean.rglob("*.wav"))
+
+    rows = build_manifest(clean, work_dir / "labels.csv", require_audio=False)
+    assert len(rows) == 3
+    assert set(rows[0]) == set(LABEL_MANIFEST_COLUMNS)
+    assert "audio_path" not in rows[0]
+    assert all(1.0 <= row["mos"] <= 5.0 for row in rows)
+
+    header = (work_dir / "labels.csv").read_text(encoding="utf-8").splitlines()[0]
+    assert header == ",".join(LABEL_MANIFEST_COLUMNS)
+
+
 def test_resolve_clean_prefix_ignores_the_full_partition():
     # The real v2 archive ships split1/clean and split1/full side by side, both
     # carrying train/valid/test MOS lists.

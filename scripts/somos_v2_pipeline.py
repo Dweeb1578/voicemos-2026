@@ -273,6 +273,7 @@ def extract_clean(
     inventory_path: Path | None = None,
     archive_record: dict | None = None,
     audio_output_dir: Path | None = None,
+    labels_only: bool = False,
 ) -> dict:
     """Extract clean lists and referenced WAVs from the two-level release.
 
@@ -324,6 +325,28 @@ def extract_clean(
         # Parse IDs after copying the lists, before opening the nested archive.
         entries = _read_manifest_inputs(output_dir)
         requested = {sample_id: split for split, sample_id, _ in entries}
+
+        if labels_only:
+            # The label-retrieval job runs after scoring is complete and needs
+            # only the three clean lists.  Skipping the nested audio archive
+            # keeps it to a few hundred kilobytes of text.
+            record = {
+                "schema_version": "somos-v2-extraction-inventory-1",
+                "extracted_at_utc": datetime.now(timezone.utc).isoformat(),
+                "labels_only": True,
+                "clean_prefix": prefix,
+                "output_dir": str(output_dir),
+                "label_file_count": len(records),
+                "referenced_sample_count": len(requested),
+                "files": records,
+            }
+            if archive_record is not None:
+                record["archive_md5"] = archive_record.get("archive_md5")
+                record["expected_md5"] = archive_record.get("expected_md5")
+                record["archive_local_sha256"] = archive_record.get("local_sha256")
+            if inventory_path is not None:
+                _write_json(inventory_path, record)
+            return record
 
         direct_audio = {}
         for info in infos:
@@ -594,31 +617,43 @@ def _find_audio(audio_dir: Path, split: str, sample_id: str) -> Path:
     )
 
 
+LABEL_MANIFEST_COLUMNS = ("sample_id", "source_group", "system_id", "split", "mos")
+
+
 def build_manifest(
     clean_dir: Path,
     output: Path | None = None,
     audio_dir: Path | None = None,
+    require_audio: bool = True,
 ) -> list[dict]:
-    """Build the frozen normalized SOMOS clean metadata/label manifest."""
+    """Build the frozen normalized SOMOS clean metadata/label manifest.
+
+    With ``require_audio`` false, no WAV is located and ``audio_path`` is
+    omitted.  The frozen analysis joins scores to targets on ``sample_id`` and
+    never opens audio, so the label-retrieval job does not need the four
+    gigabytes of WAVs that resolving a path would require.
+    """
 
     audio_dir = audio_dir or clean_dir
+    columns = MANIFEST_COLUMNS if require_audio else LABEL_MANIFEST_COLUMNS
     rows: list[dict] = []
     for split, sample_id, mos in _read_manifest_inputs(clean_dir):
         match = ID_RE.fullmatch(sample_id)
         assert match is not None
-        audio = _find_audio(audio_dir, split, sample_id)
-        rows.append({
+        row = {
             "sample_id": sample_id,
             "source_group": match.group("source_group"),
             "system_id": match.group("system_id"),
             "split": split,
             "mos": mos,
-            "audio_path": str(audio),
-        })
+        }
+        if require_audio:
+            row["audio_path"] = str(_find_audio(audio_dir, split, sample_id))
+        rows.append(row)
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(MANIFEST_COLUMNS))
+            writer = csv.DictWriter(handle, fieldnames=list(columns))
             writer.writeheader()
             writer.writerows(rows)
     return rows
@@ -676,6 +711,35 @@ def run_prepare(args: argparse.Namespace) -> dict:
     }
 
 
+def run_labels(args: argparse.Namespace) -> dict:
+    """Retrieve the official clean targets only, after scoring is complete.
+
+    This is the one job permitted to materialize MOS values.  It runs in its
+    own kernel so no predictor ever shares an environment with a target file,
+    and it extracts no audio at all.
+    """
+
+    download = download_archive(args.archive, args.provenance)
+    archive_record = archive_inventory(args.archive, args.archive_inventory)
+    extract_record = extract_clean(
+        args.archive, args.clean_dir, args.extract_inventory,
+        archive_record=archive_record, labels_only=True,
+    )
+    rows = build_manifest(args.clean_dir, args.manifest, require_audio=False)
+    return {
+        "download": download,
+        "archive_inventory": archive_record,
+        "extraction_inventory": extract_record,
+        "labels": {
+            "path": str(args.manifest),
+            "rows": len(rows),
+            "splits": {split: sum(row["split"] == split for row in rows) for split in SPLITS},
+            "columns": list(LABEL_MANIFEST_COLUMNS),
+            "audio_extracted": False,
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -710,6 +774,15 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--audio-dir", type=Path, required=True)
     prepare.add_argument("--extract-inventory", type=Path, required=True)
     prepare.add_argument("--manifest", type=Path, required=True)
+
+    labels = sub.add_parser(
+        "labels", help="retrieve the official clean targets only, no audio")
+    labels.add_argument("--archive", type=Path, required=True)
+    labels.add_argument("--provenance", type=Path, required=True)
+    labels.add_argument("--archive-inventory", type=Path, required=True)
+    labels.add_argument("--clean-dir", type=Path, required=True)
+    labels.add_argument("--extract-inventory", type=Path, required=True)
+    labels.add_argument("--manifest", type=Path, required=True)
     return parser
 
 
@@ -733,6 +806,8 @@ def main(argv: list[str] | None = None) -> int:
             "columns": list(MANIFEST_COLUMNS),
             "schema": MANIFEST_SCHEMA,
         }
+    elif args.command == "labels":
+        result = run_labels(args)
     else:
         result = run_prepare(args)
     print(json.dumps(result, indent=2))
