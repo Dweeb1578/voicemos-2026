@@ -29,7 +29,7 @@
   "embedded_source_sha256": {
     "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "scripts/somos_scoring.py": "559201ab295cef820b5b5e1c57e83da1ea2691cf209680315566813ae3a7e959",
-    "scripts/somos_runner.py": "9f4f3b8240c785510d5edad500395c1ce71354415d4ac1b1988a125be19b9737",
+    "scripts/somos_runner.py": "05a405cfe27cc095967046416811932c7279554df3fa4adda41d64d5ae2fe615",
     "scripts/clip_cache.py": "b35fe9fc45d75994c294e81043d0bf5688ae299312592c5c71e4d154051e39d8",
     "scripts/submission.py": "9922f09aef8f67e3ffa51b6abdcd21afb503f824d6e79c9c71eb701834fb932d",
     "scripts/zero_shot_dnsmos.py": "7cfa375959c584eff3bc4d5e098e1f5b6200d5c2b8fdf1a2914e3c60a02667d2",
@@ -39,7 +39,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "8818ed74de1e3bf2bf9807191d8a3afe3b528caa76e779e6e00289f7d4d68568",
+  "notebook_sha256": "5383cf840bef3873f8a70e7a03618f007be2f69100ea00f6a79827e16174658b",
   "resume": {
     "cache_filename": "nisqa-part03-of-04.cache.csv",
     "kernel_source": null,

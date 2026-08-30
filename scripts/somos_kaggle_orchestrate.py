@@ -218,10 +218,16 @@ EXTRA = ['--vendor-root', str(VENDOR)]
         # SCOREQ pulls its ONNX weights from Zenodo into a hardcoded
         # ~/.cache/scoreq path that no pinned clone covers.  Declaring the
         # download tree keeps the frozen weight-hashing rule satisfied.
-        body += '''run(sys.executable, '-m', 'pip', 'install', '-q', VENDOR)
+        # The pinned commit predates the repository's packaging metadata, so
+        # pip cannot install the clone.  Its src layout is imported directly.
+        body += '''try:
+    import onnxruntime  # noqa: F401
+except ImportError:
+    run(sys.executable, '-m', 'pip', 'install', '-q', 'onnxruntime-gpu')
 SCOREQ_CACHE = Path.home() / '.cache' / 'scoreq'
 SCOREQ_CACHE.mkdir(parents=True, exist_ok=True)
 ARTIFACTS.append(str(SCOREQ_CACHE))
+EXTRA = ['--vendor-root', str(VENDOR)]
 '''
     elif runner_id == "utmos":
         # UTMOSv2 resolves fold weights from an unpinned branch into

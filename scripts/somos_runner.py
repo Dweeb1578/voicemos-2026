@@ -151,7 +151,10 @@ def _score_distillmos(entries: pd.DataFrame, cache_path: Path, deadline: float,
 
 
 def _score_scoreq(entries: pd.DataFrame, cache_path: Path, deadline: float,
-                  before_score: Callable[[], None]) -> None:
+                  vendor_root: Path, before_score: Callable[[], None]) -> None:
+    # The frozen commit ships a src layout with no packaging metadata, so the
+    # clone is imported from disk rather than installed.
+    sys.path.insert(0, str(vendor_root / "src"))
     import scoreq
 
     natural = scoreq.Scoreq(data_domain="natural", mode="nr")
@@ -327,7 +330,7 @@ def _run_scoring(args: argparse.Namespace, entries: pd.DataFrame,
     elif runner_id == "distillmos":
         _score_distillmos(entries, cache_path, deadline, before_score)
     elif runner_id == "scoreq":
-        _score_scoreq(entries, cache_path, deadline, before_score)
+        _score_scoreq(entries, cache_path, deadline, args.vendor_root, before_score)
     elif runner_id == "utmos":
         _score_utmos(entries, cache_path, deadline, args.out_dir / "work", before_score)
     elif runner_id == "sigmos":
