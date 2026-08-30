@@ -259,6 +259,8 @@ def _score_nisqa(entries: pd.DataFrame, cache_path: Path, deadline: float,
     work_dir.mkdir(parents=True, exist_ok=True)
     input_csv = work_dir / "nisqa_input.csv"
     output_dir = work_dir / "nisqa_out"
+    # Upstream run_predict.py writes its results CSV without creating this.
+    output_dir.mkdir(parents=True, exist_ok=True)
     todo.loc[:, ["audio_path"]].rename(columns={"audio_path": "deg"}).to_csv(input_csv, index=False)
     command = [
         sys.executable, str(vendor_root / "run_predict.py"), "--mode", "predict_csv",
