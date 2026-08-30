@@ -12,10 +12,15 @@ import pandas as pd
 import pytest
 
 from scripts.somos_kaggle_orchestrate import build
-from scripts.somos_merge_shards import collect_shards, validate_provenance
+from scripts.somos_merge_shards import (
+    collect_shards,
+    validate_provenance,
+    write_merge_provenance,
+)
 from scripts.somos_scoring import (
     CACHE_CHECKPOINT_ROWS,
     FROZEN_PROTOCOL_SHA256,
+    MANIFEST_COLUMNS,
     RUNNERS,
     SAMPLE_ID_COLUMN,
     build_audio_manifest,
@@ -24,6 +29,7 @@ from scripts.somos_scoring import (
     score_paths_resumable,
     select_shard,
     sha256_file,
+    _stable_table_hash,
     validate_score_shard,
     write_score_shard,
 )
@@ -115,19 +121,45 @@ def test_shards_merge_to_canonical_runner_schema(work_dir: Path):
         cache = work_dir / f"p808-part{part:02d}-of-04.cache.csv"
         _cache_scores(entries, cache, outputs)
         score = work_dir / f"p808-part{part:02d}-of-04.csv"
-        write_score_shard(entries, cache, outputs, score)
+        score_validation = write_score_shard(entries, cache, outputs, score)
         score.with_suffix(".provenance.json").write_text(json.dumps({
             "protocol_sha256": FROZEN_PROTOCOL_SHA256,
             "runner": {"id": "p808"},
             "target_access": "No target MOS file or column was read during scoring.",
-            "score_shard": {"sha256": sha256_file(score)},
+            "audio_manifest_sha256": _stable_table_hash(loaded, MANIFEST_COLUMNS),
+            "selected_ids_sha256": score_validation["sample_id_sha256"],
+            "shard": {"index": part, "count": 4, "rows": len(entries)},
+            "score_shard": {
+                "sha256": sha256_file(score),
+                "columns": [SAMPLE_ID_COLUMN, "source_group", "system_id", "split", *outputs],
+            },
         }), encoding="utf-8")
         shards.append(score)
 
-    discovered = collect_shards(work_dir, "p808")
+    discovered = collect_shards(work_dir, "p808", 4)
     assert discovered == shards
-    for score in discovered:
-        validate_provenance(score, "p808")
+    for part, score in enumerate(discovered):
+        validate_provenance(
+            score, "p808", expected_entries=select_shard(loaded, part, 4),
+            shard_index=part, shard_count=4,
+            audio_manifest_sha256=_stable_table_hash(loaded, MANIFEST_COLUMNS),
+        )
+
+    # The merger must not accept a shard merely because its global coverage is
+    # plausible. Its file name, provenance part, and exact deterministic rows
+    # must all agree.
+    first_provenance = shards[0].with_suffix(".provenance.json")
+    tampered = json.loads(first_provenance.read_text(encoding="utf-8"))
+    tampered["shard"]["index"] = 1
+    first_provenance.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="shard provenance mismatch"):
+        validate_provenance(
+            shards[0], "p808", expected_entries=select_shard(loaded, 0, 4),
+            shard_index=0, shard_count=4,
+            audio_manifest_sha256=_stable_table_hash(loaded, MANIFEST_COLUMNS),
+        )
+    tampered["shard"]["index"] = 0
+    first_provenance.write_text(json.dumps(tampered), encoding="utf-8")
 
     merged = work_dir / "merged" / "p808.csv"
     result = merge_score_shards(shards, "p808", loaded, merged)
@@ -135,6 +167,18 @@ def test_shards_merge_to_canonical_runner_schema(work_dir: Path):
     assert result["rows"] == len(loaded)
     assert list(frame.columns) == [SAMPLE_ID_COLUMN, "source_group", "system_id", "split", "p808"]
     assert set(frame[SAMPLE_ID_COLUMN]) == set(loaded[SAMPLE_ID_COLUMN])
+
+    provenance_path, provenance = write_merge_provenance(
+        merged, "p808", shards, result["rows"],
+    )
+    assert provenance_path.name == "p808.merge.provenance.json"
+    assert provenance["merged_csv"]["sha256"] == sha256_file(merged)
+    assert provenance["merged_csv"]["columns"] == list(frame.columns)
+    assert len(provenance["input_shards"]) == 4
+    assert all(
+        item["score_csv"]["sha256"] and item["provenance"]["sha256"]
+        for item in provenance["input_shards"]
+    )
 
     bad = frame.assign(mos=3.0)
     with pytest.raises(ValueError, match="forbidden target"):
@@ -266,6 +310,9 @@ def test_merge_kernels_are_private_prediction_only_and_complete(work_dir: Path):
 
         lock = json.loads((output / runner / "merge.lock.json").read_text())
         assert lock["protocol_sha256"] == FROZEN_PROTOCOL_SHA256, runner
+        # The kernel runs "python -m scripts.somos_merge_shards", so the entry
+        # point has to be in the embedded payload, not just the scorer sources.
+        assert "scripts/somos_merge_shards.py" in lock["embedded_source_sha256"], runner
         assert lock["outputs"] == list(RUNNERS[runner]["outputs"]), runner
 
         notebook = json.loads((output / runner / "somos_merge.ipynb").read_text())
@@ -277,7 +324,9 @@ def test_merge_kernels_are_private_prediction_only_and_complete(work_dir: Path):
                 compile(cell["source"], "generated-merge", "exec")
         # The prediction-only boundary has to be enforced inside the kernel.
         assert "rglob('*_mos_list.txt')" in source, runner
+        assert "scripts/somos_merge_shards.py" in source, runner
         assert "'mos' not in frame.columns" in source, runner
+        assert ".merge.provenance.json" in source, runner
 
     # Refuses to overwrite, so a previous build cannot be silently replaced.
     with pytest.raises(FileExistsError):

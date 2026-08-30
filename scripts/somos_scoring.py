@@ -349,9 +349,11 @@ def validate_score_shard(frame: pd.DataFrame, expected: pd.DataFrame,
     forbidden = FORBIDDEN_TARGET_COLUMNS & set(frame.columns)
     if forbidden:
         raise ValueError(f"score shard contains forbidden target columns: {sorted(forbidden)}")
-    needed = {SAMPLE_ID_COLUMN, "source_group", "system_id", "split", *output_columns}
-    if not needed <= set(frame.columns):
-        raise ValueError(f"score shard missing columns: {sorted(needed - set(frame.columns))}")
+    expected_columns = [SAMPLE_ID_COLUMN, "source_group", "system_id", "split", *output_columns]
+    if list(frame.columns) != expected_columns:
+        raise ValueError(
+            "score shard schema mismatch: expected exactly "
+            f"{expected_columns}, got {list(frame.columns)}")
     if frame[SAMPLE_ID_COLUMN].duplicated().any() or frame[SAMPLE_ID_COLUMN].isna().any():
         raise ValueError("score shard has duplicate or missing sample_id")
     expected_ids = set(expected[SAMPLE_ID_COLUMN])

@@ -13,12 +13,14 @@ kernels for one runner.  It never mounts a MOS list, and it emits the canonical
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 from pathlib import Path
 
 from scripts.somos_kaggle_orchestrate import (
     _metadata,
     _notebook,
+    sha256_bytes,
     embedded_payload,
 )
 from scripts.somos_scoring import (
@@ -29,6 +31,20 @@ from scripts.somos_scoring import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# The scoring payload does not carry the merge entry point, because a scoring
+# kernel must never be able to merge.  The merge kernel needs it.
+MERGE_PAYLOAD_EXTRA = ("scripts/somos_merge_shards.py",)
+
+
+def merge_payload() -> tuple[dict[str, str], dict[str, str]]:
+    """Scoring payload plus the merge entry point, hashed the same way."""
+    encoded, hashes = embedded_payload()
+    for relative in MERGE_PAYLOAD_EXTRA:
+        content = (REPO_ROOT / relative).read_bytes()
+        encoded[relative] = base64.b64encode(content).decode("ascii")
+        hashes[relative] = sha256_bytes(content)
+    return encoded, hashes
 
 
 def _preamble(payload: dict[str, str], runner_id: str, shard_count: int) -> str:
@@ -73,6 +89,7 @@ command = [
     '--audio-manifest', str(MANIFEST),
     '--shard-root', str(SHARD_ROOT),
     '--out-dir', str(OUT),
+    '--shard-count', str(SHARD_COUNT),
 ]
 command = [str(value) for value in command]
 print('>>', ' '.join(command), flush=True)
@@ -91,18 +108,31 @@ if completed.returncode != 0:
 
 def _validate_cell(runner_id: str) -> str:
     outputs = list(RUNNERS[runner_id]["outputs"])
-    return f'''import pandas as pd
+    return f'''import json
+import pandas as pd
 merged = OUT / ({runner_id!r} + '.csv')
+provenance_path = OUT / ({runner_id!r} + '.merge.provenance.json')
 frame = pd.read_csv(merged, dtype={{'sample_id': str, 'system_id': str}})
 expected = {outputs!r}
-assert set(expected) <= set(frame.columns), sorted(frame.columns)
+expected_columns = ['sample_id', 'source_group', 'system_id', 'split', *expected]
+assert list(frame.columns) == expected_columns, list(frame.columns)
+assert len(frame) == 20100, len(frame)
 assert not frame['sample_id'].duplicated().any()
 assert frame['sample_id'].str.endswith('.wav').all()
 assert frame[expected].notna().all().all()
 assert set(frame['split']) == {{'train', 'valid', 'test'}}
 assert 'mos' not in frame.columns, 'a target column reached the merged scores'
+assert provenance_path.is_file(), provenance_path
+provenance = json.loads(provenance_path.read_text(encoding='utf-8'))
+assert provenance['protocol_sha256'] == {FROZEN_PROTOCOL_SHA256!r}
+assert provenance['runner'] == {runner_id!r}
+assert provenance['outputs'] == expected
+assert provenance['rows'] == 20100
+assert provenance['merged_csv']['columns'] == expected_columns
+assert len(provenance['input_shards']) == SHARD_COUNT
 print('merged rows', len(frame), 'outputs', expected)
 print(frame['split'].value_counts().to_dict())
+print('merge provenance', provenance_path)
 '''
 
 
@@ -115,7 +145,7 @@ def build(*, username: str, audio_kernel: str, shard_kernels: dict[str, list[str
     if output_root.exists():
         raise FileExistsError(f"refusing to overwrite existing directory: {output_root}")
     output_root.mkdir(parents=True)
-    payload, source_hashes = embedded_payload()
+    payload, source_hashes = merge_payload()
 
     written = []
     for runner_id in RUNNERS:

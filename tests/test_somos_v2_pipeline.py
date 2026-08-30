@@ -187,6 +187,99 @@ def test_a_non_numeric_score_after_the_header_still_fails(work_dir):
         _read_manifest_inputs(clean)
 
 
+def test_generated_label_kernel_is_private_and_audio_free():
+    from notebooks.make_kaggle_somos_labels_notebook import build_notebook as build_labels
+
+    certificate_hash = "a" * 64
+    notebook = build_labels(certificate_hash)
+    source = chr(10).join(
+        "".join(cell["source"]) for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            compile("".join(cell["source"]), "generated-label-kernel", "exec")
+
+    # Certificate validation is in the cell before the first target download.
+    assert source.index("validate_completion_certificate") < source.index(
+        "'scripts.somos_v2_pipeline', 'labels'"
+    )
+    assert certificate_hash in source
+
+    # It must call the labels subcommand, never prepare, which extracts audio.
+    assert "'labels'," in source
+    assert "'prepare'" not in source
+    assert "--manifest', '/kaggle/working/somos_v2_labels.csv'" in source
+
+    # The boundary assertions have to live in the kernel, not just in intent.
+    assert "expected one completion certificate" in source
+    assert "prohibited input mounted in label kernel" in source
+    assert "rglob('*.wav')" in source
+    assert "extract['labels_only'] is True" in source
+    assert "somos_v2_labels.provenance.json" in source
+
+    # The emitted sample_id pattern must match a real utterance ID, the same
+    # doubled-brace trap that once shipped a dead regex in the ingestion kernel.
+    match = re.search(r"re[.]fullmatch[(]r'([^']+)'", source)
+    assert match, "label kernel no longer pins a sample_id pattern"
+    assert re.fullmatch(match.group(1), "LJ050-0029_017.wav")
+    assert not re.fullmatch(match.group(1), "LJ050-0029.wav")
+
+
+def test_label_kernel_build_mounts_only_the_pinned_certificate(work_dir):
+    from notebooks.make_kaggle_somos_labels_notebook import build
+
+    output = work_dir / "sealed-label-kernel"
+    certificate_kernel = "unit-test/somos-v2-completion-certificate"
+    certificate_hash = "b" * 64
+    build(
+        username="unit-test",
+        certificate_kernel=certificate_kernel,
+        certificate_sha256=certificate_hash,
+        output_dir=output,
+    )
+    metadata = json.loads((output / "kernel-metadata.json").read_text(encoding="utf-8"))
+    lock = json.loads((output / "label.lock.json").read_text(encoding="utf-8"))
+    assert metadata["kernel_sources"] == [certificate_kernel]
+    assert metadata["dataset_sources"] == []
+    assert metadata["competition_sources"] == []
+    assert metadata["model_sources"] == []
+    assert lock["certificate_kernel"] == certificate_kernel
+    assert lock["certificate_sha256"] == certificate_hash
+
+
+def test_completion_certificate_kernel_mounts_exact_bank_and_emits_only_json(work_dir):
+    from notebooks.make_kaggle_somos_completion_certificate_notebook import build
+    from scripts.somos_integrity import RUNNER_OUTPUTS
+
+    merge_kernels = {
+        runner: f"unit-test/somos-merge-{runner}" for runner in RUNNER_OUTPUTS
+    }
+    output = work_dir / "completion-kernel"
+    build(username="unit-test", merge_kernels=merge_kernels, output_root=output)
+
+    metadata = json.loads((output / "kernel-metadata.json").read_text(encoding="utf-8"))
+    assert metadata["is_private"] is True
+    assert metadata["enable_gpu"] is False
+    assert metadata["enable_internet"] is False
+    assert metadata["kernel_sources"] == list(merge_kernels.values())
+    assert len(metadata["kernel_sources"]) == 10
+    notebook = json.loads(
+        (output / "somos_completion_certificate.ipynb").read_text(encoding="utf-8")
+    )
+    source = "\n".join(
+        cell["source"] for cell in notebook["cells"] if cell["cell_type"] == "code"
+    )
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            compile(cell["source"], "generated-completion-kernel", "exec")
+    assert "validate_merge_provenance" in source
+    assert "expected exactly ten merged runner CSVs" in source
+    assert "working_files != [OUTPUT.name]" in source
+    assert "somos_completion_certificate.json" in source
+    assert "somos_v2_labels.csv" in source
+
+
 def test_labels_only_extraction_takes_no_audio(work_dir):
     # The label-retrieval job runs after scoring and is the only step allowed
     # to materialize MOS values.  It must not extract a single WAV.
