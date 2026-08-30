@@ -185,7 +185,12 @@ ARTIFACTS = [str(TORCH_HOME)]
         revision = RUNNERS[runner_id]["revision"]
         code_url, code_revision = UNIVERSA_CODE
         return header + f'''VENDOR = clone_exact({code_url!r}, {code_revision!r}, '/kaggle/temp/vendor-' + RUNNER_ID)
-run(sys.executable, '-m', 'pip', 'install', '-q', VENDOR, 'huggingface_hub')
+run(sys.executable, '-m', 'pip', 'install', '-q', '--no-deps', VENDOR)
+for package in ('hyperpyyaml', 'huggingface_hub', 'accelerate', 'transformers', 'einops'):
+    try:
+        __import__(package)
+    except ImportError:
+        run(sys.executable, '-m', 'pip', 'install', '-q', '--no-deps', package)
 from huggingface_hub import hf_hub_download
 HF_HOME = Path('/kaggle/temp/somos_artifacts/hf')
 HF_HOME.mkdir(parents=True, exist_ok=True)
@@ -211,9 +216,16 @@ if requirements.exists():
 EXTRA = ['--vendor-root', str(VENDOR)]
 '''
     elif runner_id == "sigmos":
+        # The pinned commit ships sigmos.py and its ONNX file with no
+        # requirements.txt, so the guarded install was a no-op and onnxruntime,
+        # which sigmos.py imports at module level, was never present.
         body += '''requirements = VENDOR / 'ICASSP2024' / 'sigmos' / 'requirements.txt'
 if requirements.exists():
     run(sys.executable, '-m', 'pip', 'install', '-q', '-r', requirements)
+try:
+    import onnxruntime  # noqa: F401
+except ImportError:
+    run(sys.executable, '-m', 'pip', 'install', '-q', 'onnxruntime')
 EXTRA = ['--vendor-root', str(VENDOR)]
 '''
     elif runner_id == "distillmos":

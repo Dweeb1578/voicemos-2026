@@ -130,7 +130,7 @@ RUNNERS = {
         "revision": "bf4525153b6ed998f19d9e79ff1fd00f55dec42b",
         "weight_hashes": {},
         "preprocessing": "mono float32 loaded by soundfile, SIGMOS internal resampling",
-        "gpu": True,
+        "gpu": False,  # upstream builds an ONNX session with no CUDA provider
     },
     "audiobox": {
         "outputs": ("audiobox_PQ", "audiobox_CU", "audiobox_CE", "audiobox_PC"),
