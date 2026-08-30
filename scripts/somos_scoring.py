@@ -110,7 +110,7 @@ RUNNERS = {
         "revision": "0cb0b168d0f7ec1419475d1e7b7ea699d8cd599e",
         "weight_hashes": {},
         "preprocessing": "SCOREQ non-reference runner preprocessing",
-        "gpu": True,
+        "gpu": False,  # onnxruntime CUDA provider needs CUDA 13; Kaggle has 12
     },
     "utmos": {
         "outputs": ("utmos",),

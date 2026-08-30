@@ -41,6 +41,11 @@ LOCAL_PAYLOAD = (
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json",
 )
 
+UNIVERSA_CODE = (
+    "https://github.com/urgent-challenge/urgent2026_challenge_track2.git",
+    "d4fd8b4f5dc8bac8252a1999afa74ae90c05a178",
+)
+
 EXTERNAL_SOURCES = {
     "nisqa": ("https://github.com/gabrielmittag/NISQA.git", "fe84f0f252abec382b24367d5b22498a7ce34dbb"),
     "distillmos": ("https://github.com/microsoft/Distill-MOS.git", "98c0a156b5dabf2b5a8fe9cee92145cdc2a2dcdb"),
@@ -152,7 +157,7 @@ EXTRA = []
         expected = RUNNERS[runner_id]["weight_hashes"][filename]
         url = RUNNERS[runner_id]["weight_urls"][filename]
         return header + f'''run(sys.executable, '-m', 'pip', 'install', '-q', 'onnxruntime', 'librosa')
-DNS_ROOT = Path('/kaggle/working/somos_artifacts/dns')
+DNS_ROOT = Path('/kaggle/temp/somos_artifacts/dns')
 DNS_ROOT.mkdir(parents=True, exist_ok=True)
 MODEL = DNS_ROOT / {filename!r}
 urllib.request.urlretrieve({url!r}, MODEL)
@@ -170,7 +175,7 @@ EXTRA = ['--dns-model-root', str(DNS_ROOT)]
     'torch==2.11.0', 'torchaudio==2.11.0')
 import importlib.metadata
 assert importlib.metadata.version('torchaudio').startswith('2.11.0')
-TORCH_HOME = Path('/kaggle/working/somos_artifacts/torch')
+TORCH_HOME = Path('/kaggle/temp/somos_artifacts/torch')
 TORCH_HOME.mkdir(parents=True, exist_ok=True)
 (TORCH_HOME / 'orchestration.txt').write_text('frozen SOMOS SQUIM artifact root\\n')
 os.environ['TORCH_HOME'] = str(TORCH_HOME)
@@ -178,20 +183,22 @@ ARTIFACTS = [str(TORCH_HOME)]
 ''', []
     if runner_id == "universa":
         revision = RUNNERS[runner_id]["revision"]
-        return header + f'''run(sys.executable, '-m', 'pip', 'install', '-q', 'urgent2026_sqa==0.2.2', 'huggingface_hub')
+        code_url, code_revision = UNIVERSA_CODE
+        return header + f'''VENDOR = clone_exact({code_url!r}, {code_revision!r}, '/kaggle/temp/vendor-' + RUNNER_ID)
+run(sys.executable, '-m', 'pip', 'install', '-q', VENDOR, 'huggingface_hub')
 from huggingface_hub import hf_hub_download
-HF_HOME = Path('/kaggle/working/somos_artifacts/hf')
+HF_HOME = Path('/kaggle/temp/somos_artifacts/hf')
 HF_HOME.mkdir(parents=True, exist_ok=True)
 os.environ['HF_HOME'] = str(HF_HOME)
 MODEL = hf_hub_download('vvwangvv/universa-ext_wavlm-base_5metric', 'model.pt', revision={revision!r}, cache_dir=str(HF_HOME))
 CONFIG = hf_hub_download('vvwangvv/universa-ext_wavlm-base_5metric', 'config.yaml', revision={revision!r}, cache_dir=str(HF_HOME))
-ARTIFACTS = [MODEL, CONFIG, str(HF_HOME)]
+ARTIFACTS = [MODEL, CONFIG, str(HF_HOME), str(VENDOR)]
 EXTRA = ['--universa-model', MODEL, '--universa-config', CONFIG]
 ''', ["--universa-model", "<model.pt>", "--universa-config", "<config.yaml>"]
 
     url, revision = EXTERNAL_SOURCES[runner_id]
-    body = header + f'''VENDOR = clone_exact({url!r}, {revision!r}, '/kaggle/working/vendor-' + RUNNER_ID)
-HF_HOME = Path('/kaggle/working/somos_artifacts/hf-' + RUNNER_ID)
+    body = header + f'''VENDOR = clone_exact({url!r}, {revision!r}, '/kaggle/temp/vendor-' + RUNNER_ID)
+HF_HOME = Path('/kaggle/temp/somos_artifacts/hf-' + RUNNER_ID)
 HF_HOME.mkdir(parents=True, exist_ok=True)
 (HF_HOME / 'orchestration.txt').write_text('frozen SOMOS artifact root\\n')
 os.environ['HF_HOME'] = str(HF_HOME)
@@ -223,7 +230,7 @@ EXTRA = ['--vendor-root', str(VENDOR)]
         body += '''try:
     import onnxruntime  # noqa: F401
 except ImportError:
-    run(sys.executable, '-m', 'pip', 'install', '-q', 'onnxruntime-gpu')
+    run(sys.executable, '-m', 'pip', 'install', '-q', 'onnxruntime')
 SCOREQ_CACHE = Path.home() / '.cache' / 'scoreq'
 SCOREQ_CACHE.mkdir(parents=True, exist_ok=True)
 ARTIFACTS.append(str(SCOREQ_CACHE))
@@ -235,7 +242,7 @@ EXTRA = ['--vendor-root', str(VENDOR)]
         # the hashed artifact root.  The code commit is pinned; the weights
         # are not, so their hash is the only available provenance.
         body += '''run(sys.executable, '-m', 'pip', 'install', '-q', VENDOR)
-UTMOS_CACHE = Path('/kaggle/working/somos_artifacts/utmosv2')
+UTMOS_CACHE = Path('/kaggle/temp/somos_artifacts/utmosv2')
 UTMOS_CACHE.mkdir(parents=True, exist_ok=True)
 os.environ['UTMOSV2_CHACHE'] = str(UTMOS_CACHE)
 ARTIFACTS.append(str(UTMOS_CACHE))

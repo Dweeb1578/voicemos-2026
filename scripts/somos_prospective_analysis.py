@@ -112,16 +112,25 @@ class SplitArrays:
     X: np.ndarray
 
 
+# scripts/somos_merge_shards.py writes the canonical schema, which carries
+# these descriptive columns beside the scores.  They are accepted and then
+# dropped: assemble_matrix takes grouping and split from the label manifest,
+# and a second "split" column would collide in the join.
+CANONICAL_SHARD_EXTRAS = ("source_group", "system_id", "split")
+
+
 def _validate_shard(path: Path, expected: tuple[str, ...]) -> pd.DataFrame:
     frame = pd.read_csv(path, dtype={"sample_id": str})
     required = {"sample_id", *expected}
-    if set(frame.columns) != required:
+    columns = set(frame.columns)
+    unexpected = columns - required - set(CANONICAL_SHARD_EXTRAS)
+    if not required <= columns or unexpected:
         raise ValueError(
             f"{path} columns {frame.columns.tolist()} do not match {sorted(required)}"
         )
     if frame["sample_id"].duplicated().any():
         raise ValueError(f"{path} contains duplicate sample_id values")
-    return frame
+    return frame[["sample_id", *expected]]
 
 
 def assemble_matrix(labels_path: Path, shard_dir: Path) -> tuple[pd.DataFrame, dict]:

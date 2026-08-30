@@ -162,8 +162,14 @@ def test_run_analysis_end_to_end_on_synthetic_corpus(work_dir):
 
     shard_dir = work_dir / "shards"
     shard_dir.mkdir()
+    # Shards are written in the canonical merged schema that
+    # scripts/somos_merge_shards.py actually produces, descriptive columns
+    # included, not the narrower shape the analysis strictly needs.
+    descriptive = labels_frame[["sample_id", "source_group", "system_id", "split"]]
     for runner, outputs in RUNNER_OUTPUTS.items():
-        shard = predictors_frame[["sample_id", *outputs]]
+        shard = descriptive.merge(
+            predictors_frame[["sample_id", *outputs]], on="sample_id", validate="one_to_one"
+        )
         shard.to_csv(shard_dir / f"{runner}.csv", index=False)
 
     out_dir = work_dir / "out"

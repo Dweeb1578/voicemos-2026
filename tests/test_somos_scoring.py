@@ -221,14 +221,20 @@ def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):
     dns_meta = json.loads((output / "dnsmos" / "part-00" / "kernel-metadata.json").read_text())
     # squim is CPU-only: torchaudio 2.11.0 cannot import against Kaggle's CUDA.
     squim_meta = json.loads((output / "squim" / "part-00" / "kernel-metadata.json").read_text())
-    gpu_meta = json.loads((output / "scoreq" / "part-00" / "kernel-metadata.json").read_text())
+    # Derive the device expectation from the spec so this keeps holding when a
+    # runner moves between CPU and GPU.
+    for runner, spec in RUNNERS.items():
+        meta = json.loads((output / runner / "part-00" / "kernel-metadata.json").read_text())
+        assert meta["enable_gpu"] is bool(spec["gpu"]), runner
+        if spec["gpu"]:
+            assert meta["machine_shape"] == "NvidiaTeslaT4", runner
+        else:
+            assert "machine_shape" not in meta, runner
     lock = json.loads((output / "universa" / "part-01" / "orchestration.lock.json").read_text())
     assert dns_meta["enable_gpu"] is False
     assert "machine_shape" not in dns_meta
     assert squim_meta["enable_gpu"] is False
     assert "machine_shape" not in squim_meta
-    assert gpu_meta["enable_gpu"] is True
-    assert gpu_meta["machine_shape"] == "NvidiaTeslaT4"
     assert lock["runner"]["revision"] == RUNNERS["universa"]["revision"]
     assert lock["audio_input_contract"]["target_access"].startswith("No MOS-list")
     assert dns_meta["kernel_sources"] == [
