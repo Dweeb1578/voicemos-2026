@@ -239,6 +239,60 @@ def test_tree_inventory_skips_partial_downloads(work_dir: Path):
         tree_inventory([missing])
 
 
+def test_merge_kernels_are_private_prediction_only_and_complete(work_dir: Path):
+    # The canonical merge needs all 20,100 WAVs present, and they exist only in
+    # the private ingestion kernel's output, so the merge runs on Kaggle.
+    from scripts.somos_merge_kernel import build as build_merge
+
+    output = work_dir / "merge-kernels"
+    audio = "unit-test/somos-v2-audio-only-prospective-ingestion"
+    shard_kernels = {
+        runner: [f"unit-test/somos-{runner}-part{index:02d}-of-04" for index in range(4)]
+        for runner in RUNNERS
+    }
+    result = build_merge(username="unit-test", audio_kernel=audio,
+                         shard_kernels=shard_kernels, shard_count=4,
+                         output_root=output)
+    assert result["kernels"] == len(RUNNERS)
+
+    for runner in RUNNERS:
+        meta = json.loads((output / runner / "kernel-metadata.json").read_text())
+        assert meta["is_private"] is True, runner
+        assert meta["enable_gpu"] is False, runner
+        # The audio source first, then exactly the four shard kernels.
+        assert meta["kernel_sources"] == [audio, *shard_kernels[runner]], runner
+        assert (output / runner / meta["code_file"]).is_file(), runner
+        assert meta["dataset_sources"] == [] and meta["model_sources"] == [], runner
+
+        lock = json.loads((output / runner / "merge.lock.json").read_text())
+        assert lock["protocol_sha256"] == FROZEN_PROTOCOL_SHA256, runner
+        assert lock["outputs"] == list(RUNNERS[runner]["outputs"]), runner
+
+        notebook = json.loads((output / runner / "somos_merge.ipynb").read_text())
+        source = "\n".join(
+            cell["source"] for cell in notebook["cells"] if cell["cell_type"] == "code"
+        )
+        for cell in notebook["cells"]:
+            if cell["cell_type"] == "code":
+                compile(cell["source"], "generated-merge", "exec")
+        # The prediction-only boundary has to be enforced inside the kernel.
+        assert "rglob('*_mos_list.txt')" in source, runner
+        assert "'mos' not in frame.columns" in source, runner
+
+    # Refuses to overwrite, so a previous build cannot be silently replaced.
+    with pytest.raises(FileExistsError):
+        build_merge(username="unit-test", audio_kernel=audio,
+                    shard_kernels=shard_kernels, shard_count=4, output_root=output)
+
+    # A short shard list is a hard error, never a partial merge.
+    short = dict(shard_kernels)
+    short["dnsmos"] = short["dnsmos"][:3]
+    with pytest.raises(ValueError, match="expected 4 shard kernels"):
+        build_merge(username="unit-test", audio_kernel=audio,
+                    shard_kernels=short, shard_count=4,
+                    output_root=work_dir / "merge-short")
+
+
 def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):
     output = work_dir / "somos-kernels"
     result = build(

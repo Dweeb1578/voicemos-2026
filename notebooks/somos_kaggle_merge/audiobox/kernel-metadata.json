@@ -1,0 +1,20 @@
+{
+  "id": "vrishabnair/somos-merge-audiobox",
+  "title": "somos-merge-audiobox",
+  "code_file": "somos_merge.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "vrishabnair/somos-v2-audio-only-prospective-ingestion",
+    "vrishabnair/somos-audiobox-part00-of-04",
+    "vrishabnair/somos-audiobox-part01-of-04",
+    "vrishabnair/somos-audiobox-part02-of-04",
+    "vrishabnair/somos-audiobox-part03-of-04"
+  ],
+  "model_sources": []
+}

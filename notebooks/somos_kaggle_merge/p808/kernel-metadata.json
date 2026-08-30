@@ -1,0 +1,20 @@
+{
+  "id": "vrishabnair/somos-merge-p808",
+  "title": "somos-merge-p808",
+  "code_file": "somos_merge.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "vrishabnair/somos-v2-audio-only-prospective-ingestion",
+    "vrishabnair/somos-p808-part00-of-04",
+    "vrishabnair/somos-p808-part01-of-04",
+    "vrishabnair/somos-p808-part02-of-04",
+    "vrishabnair/somos-p808-part03-of-04"
+  ],
+  "model_sources": []
+}

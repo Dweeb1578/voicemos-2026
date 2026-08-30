@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "protocol_sha256": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
+  "runner": "universa",
+  "outputs": [
+    "universa_mos",
+    "universa_scoreq",
+    "universa_utmos",
+    "universa_nisqa_mos",
+    "universa_dnsmos_ovrl"
+  ],
+  "shard_count": 4,
+  "shard_kernels": [
+    "vrishabnair/somos-universa-part00-of-04",
+    "vrishabnair/somos-universa-part01-of-04",
+    "vrishabnair/somos-universa-part02-of-04",
+    "vrishabnair/somos-universa-part03-of-04"
+  ],
+  "audio_kernel": "vrishabnair/somos-v2-audio-only-prospective-ingestion",
+  "embedded_source_sha256": {
+    "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scripts/somos_scoring.py": "8d8332d44e5c3616586114be5e75eff80b1a0a232e9f09af104bc988c8dad9ab",
+    "scripts/somos_runner.py": "1d9c01998613224d33f19f9275db02104674cec418e8ecae701bd9af76a57da2",
+    "scripts/clip_cache.py": "b35fe9fc45d75994c294e81043d0bf5688ae299312592c5c71e4d154051e39d8",
+    "scripts/submission.py": "9922f09aef8f67e3ffa51b6abdcd21afb503f824d6e79c9c71eb701834fb932d",
+    "scripts/zero_shot_dnsmos.py": "7cfa375959c584eff3bc4d5e098e1f5b6200d5c2b8fdf1a2914e3c60a02667d2",
+    "scripts/zero_shot_p808.py": "172673d730fc04e4a93491739bf3ab2778f9ee0e7b2d519f5b04b904c347ab92",
+    "scripts/zero_shot_squim.py": "36f39f08c91c8e3b35ba4087a59bb2e8345f5aabd6b63dc96a30d585e557dfb9",
+    "scripts/zero_shot_audiobox.py": "9724aa90c7c606f63fed101590d2dd2f369626a5c64f143939ed1fa56cce3eaa",
+    "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
+    "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
+  },
+  "target_access": "No MOS-list file or target column may be mounted or read."
+}

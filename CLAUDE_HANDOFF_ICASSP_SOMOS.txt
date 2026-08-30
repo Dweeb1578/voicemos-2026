@@ -1,0 +1,212 @@
+VOICE MOS ICASSP 2027 HANDOFF
+Updated: 2026-08-30 07:40 Asia/Calcutta
+Workspace: D:\Projects\VoiceMOS competition
+
+MISSION
+
+Make the ICASSP 2027 paper submission-ready by completing the prospectively
+frozen SOMOS v2 validation, integrating only defensible results, rebuilding the
+five-page paper, and running hostile reviews.
+
+WHAT CHANGED SINCE THE LAST HANDOFF
+
+The corpus is retrieved, all ten frozen runners are validated on real Kaggle
+hardware, the feasibility question is answered with measurements, and the full
+40-kernel scoring fan-out has been launched with Vrishab's explicit go-ahead.
+Fifteen defects were found and fixed, each logged in its own commit on the
+archive branch.
+
+FIRST READ
+
+1. D:\Obsidian\VrishabVault\WIP\voicemos-competition.md
+2. docs\mosaic_icassp_2027\third_corpus_protocol_frozen.md
+3. docs\mosaic_icassp_2027\prospective_validation_gate.md
+4. This file's KNOWN TRAPS section before touching any Kaggle code.
+
+NON-NEGOTIABLE SCIENTIFIC FREEZE
+
+- Corpus: SOMOS v2, https://zenodo.org/records/7378801
+- Protocol SHA-256:
+  81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9
+- Archive branch: codex/somos-v2-protocol-freeze
+- Verify the protocol hash with "git cat-file blob", never by hashing a
+  checked-out file. There is no .gitattributes and core.autocrlf is true, so a
+  Windows checkout has different bytes.
+- The bank is fixed at 10 public runners and 27 predictor outputs. D3 and U3 are
+  not part of it.
+- The analysis is post-release exploratory. Never call it blind or
+  preregistered.
+- Do not change corpus, split, budgets, seeds, model bank, hyperparameter grids,
+  or primary analysis after seeing labels.
+
+TIMESTAMP CHAIN ON codex/somos-v2-protocol-freeze
+
+  d3b1dc0  protocol freeze, protocol plus sidecar only
+  9d40d59  implementation timestamped BEFORE the first ingestion launch
+  7366264  clean-split resolver fix, first retrieval recorded
+  021658b  clean-list schema fix, header row and bare IDs
+  f0237af  completed retrieval provenance
+  def35b1  string coercion in the generated run cell
+  f26ddfa  CPU runner fixes, nvidia-smi, subprocess cwd, squim device
+  39d44a0  SCOREQ src-layout import, concurrency-aware launcher
+  339181b  NISQA output directory, launcher list handling
+  76d104f  analysis accepts the merged shard schema, three runner fixes
+  1b66a24  SIGMOS onnxruntime, Uni-VERSA torch stack protection
+  b75b3a4  all ten runners measured, feasibility settled
+
+9d40d59 predates the first SOMOS kernel launch, so the paper may state that the
+protocol and implementation were frozen and independently timestamped before
+retrieval. Every later commit logs its own correction, as the gate requires.
+
+CORPUS STATE, RETRIEVED AND VERIFIED
+
+- Kernel slug: vrishabnair/somos-v2-audio-only-prospective-ingestion
+  NOTE: Kaggle assigned this slug from the TITLE, not the id in the metadata.
+- Archive MD5 bdfde4cae256549dfab05d713136e4af, matches the frozen protocol.
+- Runtime SHA-256
+  bb43466d6d90cb1eea57bdbf4e7c776382e3f85c57256e61db091266df8ee994
+- Nested audios.zip SHA-256
+  6aabf935564246ec5de257532e97728936cf88aedeb382c59b5b0a6c2505d86d
+- 20,100 utterances: 14,100 train, 3,000 valid, 3,000 test. The documented
+  70/15/15 design.
+- No MOS list in the saved output. No MOS value has been read by anyone.
+- Provenance committed under docs\mosaic_icassp_2027\somos_retrieval\.
+
+MEASURED THROUGHPUT, ALL TEN RUNNERS
+
+100-row smoke each, projected over 20,100 with four shards per runner:
+
+  dev  runner        rows/s  total h  per shard  outputs
+  CPU  squim           0.65     8.63       2.16        3
+  CPU  scoreq          0.80     6.95       1.74        2
+  CPU  sigmos          2.00     2.79       0.70        7
+  CPU  dnsmos          2.77     2.01       0.50        2
+  CPU  p808            3.91     1.43       0.36        1
+  GPU  utmos           0.64     8.71       2.18        1
+  GPU  nisqa           2.69     2.08       0.52        1
+  GPU  universa        5.96     0.94       0.23        5
+  GPU  audiobox        6.31     0.88       0.22        4
+  GPU  distillmos      7.53     0.74       0.19        1
+
+GPU 13.35 h against the 30 h quota, 45 percent. CPU 21.82 h at no quota cost.
+Worst shard 2.18 h against an 11 h internal deadline. Wall-clock floor about
+7 h, set by the two-concurrent-GPU cap rather than the quota.
+
+The old near-11-hour SCOREQ figure came from the fairseq path. The pinned
+commit defaults to ONNX.
+
+CURRENT STATE
+
+The 40-kernel fan-out is running via scripts\somos_launch_queue.sh. Rerunning
+that script is safe: it skips completed kernels and adopts running ones.
+
+EXACT NEXT ACTIONS
+
+1. Wait for the fan-out. Watch for FAIL lines; each failed kernel saves
+   <tag>.runner.log in its output with the real traceback.
+2. Merge shards into one <runner>.csv per runner with
+   scripts\somos_merge_shards.py. It validates shard indices, protocol hashes,
+   sample_id coverage, finiteness and non-constancy.
+3. Only after all 27 outputs are complete, materialize the official clean
+   labels in a separate job. Never expose target files to a predictor kernel.
+4. Run scripts\somos_prospective_analysis.py exactly as frozen: complete-case
+   thresholds, validation-only selection, budgets 200/500/1000/2500, seeds 0-9,
+   bootstrap seed 20260829, 10,000 draws, all six baselines.
+5. Integrate only if provenance and the protocol hash validate. Report a null
+   or negative result honestly.
+6. Rebuild the five-page paper, inspect every rendered page, rerun hostile
+   novelty, leakage, statistical-validity and visual reviews.
+
+KNOWN TRAPS, ALL LEARNED THE HARD WAY
+
+Kaggle platform
+- Kaggle assigns a kernel slug from the TITLE, not the id in
+  kernel-metadata.json. All 40 kernels once pointed at a nonexistent source.
+- At most 2 concurrent batch GPU sessions. Wall clock, not quota, is binding.
+- On Windows, "kaggle kernels output" writes logs with cp1252 and dies on
+  non-Latin-1 output, leaving a zero-byte log and no error. Set PYTHONUTF8=1.
+- It also connection-resets on outputs with many files. Use --file-pattern.
+
+CUDA 13 versus 12, this image ships CUDA 12
+- This broke three runners three different ways: a PyPI wheel for a frozen
+  version (squim), an onnxruntime GPU provider that silently fell back to CPU
+  and would have burned 7 GPU hours (scoreq), and a transitive torch downgrade
+  (universa).
+- Never let pip replace the preinstalled torch stack. Use --no-deps for
+  torch-adjacent packages only. A blanket --no-deps is also wrong: it left
+  hyperpyyaml with an incompatible ruamel.yaml.
+
+Generated kernels
+- compile() on a notebook cell does NOT catch an int in an argv list. Execute
+  the cell in tests.
+- A subprocess does not inherit the notebook's sys.path, so the embedded bundle
+  must be its cwd.
+- Progress bars and tracebacks share a stream, and a carriage return erases the
+  traceback before the kernel log records it. Kernels now tee runner output to
+  <tag>.runner.log. Four failures in a row reported nothing but exit code 1
+  before this existed.
+- Vendor clones and weight caches belong in /kaggle/temp, never /kaggle/working,
+  or they land in the saved output and break log retrieval.
+- Nested f-strings in the generator need doubled braces. This has caused two
+  separate bugs, a dead regex and a literal {code_url!r}.
+
+Upstream packages
+- scoreq's pinned commit predates its packaging metadata. Import from
+  <clone>/src, do not pip install it.
+- sigmos ships no requirements.txt, so a guarded install is a silent no-op. It
+  needs onnxruntime explicitly, and it builds its ONNX session with no
+  providers argument, so it is inherently CPU.
+- urgent2026_sqa 0.2.2 is not on PyPI. It lives in
+  urgent-challenge/urgent2026_challenge_track2, pinned at d4fd8b4.
+- NISQA's run_predict.py writes its results CSV without creating the output
+  directory.
+- A Hugging Face cache holds *.incomplete and *.lock files during a fetch.
+  tree_inventory crashed hashing one that was renamed mid-walk. This was shared
+  provenance code and would have hit the fan-out intermittently.
+
+Tests that lie
+- Three separate production failures came from fixtures encoding a schema that
+  does not exist: the SOMOS list format, the merged shard schema, and an argv
+  list checked with compile() instead of execution. When a test passes but
+  production fails, suspect the fixture first.
+
+ENVIRONMENT
+
+- Use py -3.14. numpy 2.3.5, scipy 1.17.1, 27 SOMOS tests pass. The default
+  3.12 has a broken numpy/scipy pairing; that was never a code defect.
+- Kaggle OAuth active as vrishabnair. GitHub CLI as Dweeb1578.
+- Never operate a second Kaggle account.
+
+GIT SAFETY
+
+- Local main is far ahead of origin/main. NEVER push local main.
+- Use an alternate GIT_INDEX_FILE with read-tree, update-index, write-tree and
+  commit-tree so the dirty working tree is untouched. Verify with diff-tree
+  before pushing.
+- Never commit the paper, local data, output, secrets, reviews, or unrelated
+  modified files to the archive branch.
+- Do not open a PR without asking Vrishab.
+
+PAPER CLAIM BOUNDARIES
+
+- Do not call SOMOS blind. Do not claim preregistration. Say the protocol and
+  implementation were frozen and independently timestamped before retrieval.
+- Do not imply the VoiceMOS source-condition proxy is an official domain label.
+- Do not fabricate a leaderboard or a T09 rank. Keep the no-leaderboard
+  narrative.
+- Do not claim any acceptance probability as fact.
+- Disclose that pinning a code revision does not pin hidden upstream training
+  overlap with SOMOS.
+
+COMPLETED EVIDENCE, UNCHANGED
+
+Ten-seed crossed VoiceMOS source-condition evaluation:
+  raw ridge   0.7316 +/- 0.0099 SRCC
+  equal ranks 0.6886 +/- 0.0096 SRCC
+  paired gap  +0.0430 +/- 0.0069
+Caveats that must stay visible: ID-derived unnamed system-condition proxy,
+post-release analysis, batch-transductive split ranks, fixed post-selected
+29-predictor bank.
+
+Coauthors: Shubham Sharma, Abhinav Bangar, Manik Gupta, Vrishab. Team ID T09.
+Confirm author order and affiliations with Vrishab before submission.
