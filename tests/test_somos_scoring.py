@@ -159,19 +159,26 @@ def test_generated_run_cell_passes_only_string_arguments(work_dir: Path, monkeyp
 
     captured = {}
 
+    class _Completed:
+        returncode = 0
+        stdout = "scored 100 rows"
+
     def fake_run(command, *args, **kwargs):
         captured["command"] = command
         captured["cwd"] = kwargs.get("cwd")
+        return _Completed()
 
     monkeypatch.setattr(real_subprocess, "run", fake_run)
     namespace = {
         "AUDIO_ROOT": Path("/kaggle/input/audio"),
         "MANIFEST": Path("/kaggle/input/somos_audio_manifest.csv"),
-        "OUT": Path("/kaggle/working/out"),
+        # A real directory: the cell writes the runner log here.
+        "OUT": work_dir,
         "EXTRA": ["--vendor-root", "/kaggle/working/vendor"],
         # A Path here proves the cell coerces artifacts too, not just numbers.
         "ARTIFACTS": [Path("/kaggle/working/somos_artifacts")],
         "BUNDLE": Path("/kaggle/working/somos_bundle"),
+        "TAG": "scoreq-part02-of-04",
     }
     exec(run_cell, namespace)
 
@@ -207,6 +214,29 @@ def test_environment_snapshot_survives_a_machine_without_nvidia_smi(work_dir: Pa
     assert payload["gpu"] == []
     assert payload["pip_freeze"]
     assert record["sha256"]
+
+
+def test_tree_inventory_skips_partial_downloads(work_dir: Path):
+    # A Hugging Face cache carries *.incomplete and *.lock files while a fetch
+    # is in flight; hashing them crashed the Uni-VERSA runner when one was
+    # renamed between the directory walk and the stat call.
+    from scripts.somos_scoring import tree_inventory
+
+    root = work_dir / "hf"
+    (root / "blobs").mkdir(parents=True)
+    (root / "blobs" / "model.bin").write_bytes(b"weights")
+    (root / "blobs" / "abc123.incomplete").write_bytes(b"partial")
+    (root / "blobs" / "abc123.lock").write_bytes(b"")
+
+    inventory = tree_inventory([root])
+    names = [Path(entry["path"]).name for entry in inventory]
+    assert names == ["model.bin"]
+    assert inventory[0]["bytes"] == len(b"weights")
+
+    # A real artifact that disappears is still an error, not a silent skip.
+    missing = work_dir / "gone"
+    with pytest.raises(FileNotFoundError):
+        tree_inventory([missing])
 
 
 def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):

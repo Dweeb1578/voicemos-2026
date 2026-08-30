@@ -43,7 +43,7 @@
   ],
   "embedded_source_sha256": {
     "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "scripts/somos_scoring.py": "5f80d83e8faa26086af043379bbd897c075e36eb424161827072bbbeb6352ea2",
+    "scripts/somos_scoring.py": "8d8332d44e5c3616586114be5e75eff80b1a0a232e9f09af104bc988c8dad9ab",
     "scripts/somos_runner.py": "1d9c01998613224d33f19f9275db02104674cec418e8ecae701bd9af76a57da2",
     "scripts/clip_cache.py": "b35fe9fc45d75994c294e81043d0bf5688ae299312592c5c71e4d154051e39d8",
     "scripts/submission.py": "9922f09aef8f67e3ffa51b6abdcd21afb503f824d6e79c9c71eb701834fb932d",
@@ -54,7 +54,7 @@
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.md": "81daeb5dbfcac387ea9bad14dffe0603715999524028a2902757fc6aa1c241d9",
     "docs/mosaic_icassp_2027/third_corpus_protocol_frozen.sha256.json": "836f7d5e2d732e642d964e86d218f6a45580e0c738a2683d1f20c44fe1602da7"
   },
-  "notebook_sha256": "81dcd7d3e8b732c1db953a57de505912c0125acc7428b38fabf6860d9d54da6a",
+  "notebook_sha256": "55bee44d5afe792e0360caa4f2209ab6f074c3ed29ef9b1a09e152764a5e074b",
   "resume": {
     "cache_filename": "p808-part01-of-04.cache.csv",
     "kernel_source": null,

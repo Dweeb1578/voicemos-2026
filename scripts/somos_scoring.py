@@ -398,6 +398,16 @@ def write_score_shard(entries: pd.DataFrame, cache_path: Path,
     return validation
 
 
+# A Hugging Face cache holds partial downloads and lock files while a fetch is
+# in flight.  They are not model artifacts, and they are renamed or removed the
+# moment the download completes, so hashing them is both meaningless and racy.
+TRANSIENT_ARTIFACT_SUFFIXES = (".incomplete", ".lock")
+
+
+def _is_transient_artifact(path: Path) -> bool:
+    return path.name.endswith(TRANSIENT_ARTIFACT_SUFFIXES)
+
+
 def tree_inventory(paths: Iterable[Path]) -> list[dict]:
     """Hash model artifacts before accepting scores, preserving relative names."""
     result = []
@@ -405,15 +415,27 @@ def tree_inventory(paths: Iterable[Path]) -> list[dict]:
         root = Path(root)
         if not root.exists():
             raise FileNotFoundError(f"declared model artifact path missing: {root}")
-        files = [root] if root.is_file() else sorted(path for path in root.rglob("*") if path.is_file())
+        if root.is_file():
+            files = [root]
+        else:
+            files = sorted(
+                path for path in root.rglob("*")
+                if path.is_file() and not _is_transient_artifact(path)
+            )
         if not files:
             raise ValueError(f"declared model artifact path is empty: {root}")
         for path in files:
-            result.append({
-                "path": str(path),
-                "sha256": sha256_file(path),
-                "bytes": path.stat().st_size,
-            })
+            try:
+                digest = sha256_file(path)
+                size = path.stat().st_size
+            except FileNotFoundError:
+                # A completed download can rename its blob while the walk runs.
+                # Only a transient file may vanish; a real artifact going
+                # missing stays an error.
+                if _is_transient_artifact(path):
+                    continue
+                raise
+            result.append({"path": str(path), "sha256": digest, "bytes": size})
     return result
 
 

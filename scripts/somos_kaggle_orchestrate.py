@@ -186,11 +186,18 @@ ARTIFACTS = [str(TORCH_HOME)]
         code_url, code_revision = UNIVERSA_CODE
         return header + f'''VENDOR = clone_exact({code_url!r}, {code_revision!r}, '/kaggle/temp/vendor-' + RUNNER_ID)
 run(sys.executable, '-m', 'pip', 'install', '-q', '--no-deps', VENDOR)
-for package in ('hyperpyyaml', 'huggingface_hub', 'accelerate', 'transformers', 'einops'):
+# accelerate and transformers declare torch, so resolving their dependencies
+# would replace the image's working CUDA 12 build.
+for package in ('accelerate', 'transformers'):
     try:
         __import__(package)
     except ImportError:
         run(sys.executable, '-m', 'pip', 'install', '-q', '--no-deps', package)
+# These are pure Python and carry real version constraints of their own:
+# hyperpyyaml needs ruamel.yaml<0.19, and the image ships a newer one whose
+# loader it cannot drive.  Installing without dependencies leaves that
+# mismatch in place, so let pip resolve them.
+run(sys.executable, '-m', 'pip', 'install', '-q', 'hyperpyyaml', 'huggingface_hub', 'einops')
 from huggingface_hub import hf_hub_download
 HF_HOME = Path('/kaggle/temp/somos_artifacts/hf')
 HF_HOME.mkdir(parents=True, exist_ok=True)
@@ -288,9 +295,23 @@ if {smoke_items!r}:
 # runtime values are emitted as integers.
 command = [str(value) for value in command]
 print('>>', ' '.join(command), flush=True)
+# Progress bars write carriage returns to the same stream as a traceback, and
+# the kernel log keeps only the last overwrite, so a crash can reach the log
+# with its traceback erased.  Tee the runner's output to a file in the saved
+# output instead, where nothing overwrites it.
+RUN_LOG = OUT / (TAG + '.runner.log')
 # The runner is a subprocess and does not inherit the notebook's sys.path, so
 # the embedded bundle has to be its working directory for -m to resolve it.
-subprocess.run(command, check=True, cwd=str(BUNDLE))
+with RUN_LOG.open('w', encoding='utf-8') as handle:
+    completed = subprocess.run(
+        command, cwd=str(BUNDLE), stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, errors='replace',
+    )
+    handle.write(completed.stdout or '')
+tail = (completed.stdout or '').splitlines()
+print(chr(10).join(line for line in tail[-40:] if 'it/s' not in line), flush=True)
+if completed.returncode != 0:
+    raise SystemExit(f'runner failed with {{completed.returncode}}; see {{RUN_LOG}}')
 '''
 
 
