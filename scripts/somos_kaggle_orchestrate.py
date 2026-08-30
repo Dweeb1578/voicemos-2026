@@ -162,9 +162,14 @@ ARTIFACTS = [str(DNS_ROOT)]
 EXTRA = ['--dns-model-root', str(DNS_ROOT)]
 ''', ["--dns-model-root", "<dns-root>"]
     if runner_id == "squim":
-        return header + '''run(sys.executable, '-m', 'pip', 'install', '-q', 'torchaudio==2.11.0')
+        # The default PyPI torchaudio 2.11.0 wheel links libcudart.so.13 and
+        # fails to import on Kaggle, which ships torch 2.10 with CUDA 12.  The
+        # CPU index carries the same frozen version with no CUDA linkage.
+        return header + '''run(sys.executable, '-m', 'pip', 'install', '-q',
+    '--index-url', 'https://download.pytorch.org/whl/cpu',
+    'torch==2.11.0', 'torchaudio==2.11.0')
 import importlib.metadata
-assert importlib.metadata.version('torchaudio') == '2.11.0'
+assert importlib.metadata.version('torchaudio').startswith('2.11.0')
 TORCH_HOME = Path('/kaggle/working/somos_artifacts/torch')
 TORCH_HOME.mkdir(parents=True, exist_ok=True)
 (TORCH_HOME / 'orchestration.txt').write_text('frozen SOMOS SQUIM artifact root\\n')
@@ -258,7 +263,9 @@ if {smoke_items!r}:
 # runtime values are emitted as integers.
 command = [str(value) for value in command]
 print('>>', ' '.join(command), flush=True)
-subprocess.run(command, check=True)
+# The runner is a subprocess and does not inherit the notebook's sys.path, so
+# the embedded bundle has to be its working directory for -m to resolve it.
+subprocess.run(command, check=True, cwd=str(BUNDLE))
 '''
 
 

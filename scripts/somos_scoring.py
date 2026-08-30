@@ -86,7 +86,7 @@ RUNNERS = {
         "revision": "torchaudio==2.11.0",
         "weight_hashes": {},
         "preprocessing": "mono float32, 16 kHz polyphase resample",
-        "gpu": True,
+        "gpu": False,  # torchaudio 2.11.0 wheels need CUDA 13; Kaggle has 12
     },
     "nisqa": {
         "outputs": ("nisqa",),
@@ -423,14 +423,23 @@ def environment_snapshot(output_path: Path) -> dict:
     pip = subprocess.run(
         [sys.executable, "-m", "pip", "freeze"], capture_output=True,
         text=True, check=False).stdout
-    gpu = subprocess.run(
-        ["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
-        capture_output=True, text=True, check=False).stdout
+    # Two frozen runners are CPU only, and those machines have no driver, so a
+    # missing nvidia-smi is expected rather than a failure.  check=False does
+    # not cover this: a missing executable raises before the process starts.
+    try:
+        gpu = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
+            capture_output=True, text=True, check=False).stdout
+        nvidia_smi_present = True
+    except (FileNotFoundError, OSError):
+        gpu = ""
+        nvidia_smi_present = False
     payload = {
         "python": sys.version,
         "platform": platform.platform(),
         "pip_freeze": pip.splitlines(),
         "gpu": gpu.splitlines(),
+        "nvidia_smi_present": nvidia_smi_present,
         "captured_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

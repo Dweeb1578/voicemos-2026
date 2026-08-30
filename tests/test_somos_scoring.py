@@ -161,6 +161,7 @@ def test_generated_run_cell_passes_only_string_arguments(work_dir: Path, monkeyp
 
     def fake_run(command, *args, **kwargs):
         captured["command"] = command
+        captured["cwd"] = kwargs.get("cwd")
 
     monkeypatch.setattr(real_subprocess, "run", fake_run)
     namespace = {
@@ -170,6 +171,7 @@ def test_generated_run_cell_passes_only_string_arguments(work_dir: Path, monkeyp
         "EXTRA": ["--vendor-root", "/kaggle/working/vendor"],
         # A Path here proves the cell coerces artifacts too, not just numbers.
         "ARTIFACTS": [Path("/kaggle/working/somos_artifacts")],
+        "BUNDLE": Path("/kaggle/working/somos_bundle"),
     }
     exec(run_cell, namespace)
 
@@ -181,6 +183,30 @@ def test_generated_run_cell_passes_only_string_arguments(work_dir: Path, monkeyp
     assert command[command.index("--shard-index") + 1] == "2"
     assert command[command.index("--shard-count") + 1] == "4"
     assert command[command.index("--smoke-items") + 1] == "100"
+    # The subprocess does not inherit sys.path, so it must run in the bundle.
+    assert captured["cwd"] == str(namespace["BUNDLE"])
+
+
+def test_environment_snapshot_survives_a_machine_without_nvidia_smi(work_dir: Path, monkeypatch):
+    # dnsmos and p808 are frozen as CPU runners, and those machines have no
+    # driver, so Popen raises FileNotFoundError before check=False can apply.
+    import subprocess as real_subprocess
+    from scripts.somos_scoring import environment_snapshot
+
+    real_run = real_subprocess.run
+
+    def run_without_driver(command, *args, **kwargs):
+        if command and str(command[0]) == "nvidia-smi":
+            raise FileNotFoundError(2, "No such file or directory", "nvidia-smi")
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(real_subprocess, "run", run_without_driver)
+    record = environment_snapshot(work_dir / "environment.json")
+    payload = json.loads((work_dir / "environment.json").read_text(encoding="utf-8"))
+    assert payload["nvidia_smi_present"] is False
+    assert payload["gpu"] == []
+    assert payload["pip_freeze"]
+    assert record["sha256"]
 
 
 def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):
@@ -193,12 +219,16 @@ def test_kaggle_build_is_local_only_and_pins_metadata(work_dir: Path):
     assert result["kernels"] == 20
 
     dns_meta = json.loads((output / "dnsmos" / "part-00" / "kernel-metadata.json").read_text())
+    # squim is CPU-only: torchaudio 2.11.0 cannot import against Kaggle's CUDA.
     squim_meta = json.loads((output / "squim" / "part-00" / "kernel-metadata.json").read_text())
+    gpu_meta = json.loads((output / "scoreq" / "part-00" / "kernel-metadata.json").read_text())
     lock = json.loads((output / "universa" / "part-01" / "orchestration.lock.json").read_text())
     assert dns_meta["enable_gpu"] is False
     assert "machine_shape" not in dns_meta
-    assert squim_meta["enable_gpu"] is True
-    assert squim_meta["machine_shape"] == "NvidiaTeslaT4"
+    assert squim_meta["enable_gpu"] is False
+    assert "machine_shape" not in squim_meta
+    assert gpu_meta["enable_gpu"] is True
+    assert gpu_meta["machine_shape"] == "NvidiaTeslaT4"
     assert lock["runner"]["revision"] == RUNNERS["universa"]["revision"]
     assert lock["audio_input_contract"]["target_access"].startswith("No MOS-list")
     assert dns_meta["kernel_sources"] == [

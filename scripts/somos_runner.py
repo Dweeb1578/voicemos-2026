@@ -114,7 +114,8 @@ def _score_squim(entries: pd.DataFrame, cache_path: Path, deadline: float,
                  before_score: Callable[[], None]) -> None:
     from scripts.zero_shot_squim import make_squim_scorer
 
-    scorer = make_squim_scorer("cuda")
+    # make_squim_scorer picks cuda when it is available and cpu otherwise.
+    scorer = make_squim_scorer()
 
     def reordered(path: str) -> tuple[float, float, float]:
         stoi, pesq, si_sdr = scorer(path)
@@ -252,6 +253,7 @@ def _score_nisqa(entries: pd.DataFrame, cache_path: Path, deadline: float,
     if time.monotonic() >= deadline:
         raise TimeoutError("NISQA: stopping before the 12-hour kernel limit")
     before_score()
+    work_dir.mkdir(parents=True, exist_ok=True)
     input_csv = work_dir / "nisqa_input.csv"
     output_dir = work_dir / "nisqa_out"
     todo.loc[:, ["audio_path"]].rename(columns={"audio_path": "deg"}).to_csv(input_csv, index=False)
